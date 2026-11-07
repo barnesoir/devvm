@@ -12,6 +12,7 @@ import (
 
 	"github.com/devvmhq/devvm/internal/backend"
 	"github.com/devvmhq/devvm/internal/build"
+	"github.com/devvmhq/devvm/internal/gitprotect"
 	"github.com/devvmhq/devvm/internal/image"
 	"github.com/devvmhq/devvm/internal/msg"
 	"github.com/devvmhq/devvm/internal/platform"
@@ -585,15 +586,15 @@ func (e remaking) finish(ctx context.Context, t *target, p remakeInVM, c chainOf
 	// The new machine is the one by its name now, in its clone mode, with
 	// what p read again, and its devcontainer.json's commands run again
 	// on its new disk.
-	mode := ""
+	var git gitprotect.InVM
 	if p.Clone == CloneOff {
-		mode = e.Protector(t.f.Dir).NewMode(false)
+		git = e.Protector(t.f.Dir).NewSection(false)
 	}
 	err := st.Update(ctx, func(st *state.VM) error {
 		if err := madeWith(st, p); err != nil {
 			return err
 		}
-		return switchedTo(st, p.Clone, mode)
+		return switchedTo(st, p.Clone, git)
 	})
 	if err != nil {
 		return err

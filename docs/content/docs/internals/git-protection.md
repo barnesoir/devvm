@@ -44,6 +44,16 @@ devvm also reports these, the first two on every launch and the last when they c
 - Linked worktrees whose `commondir` leads elsewhere (`git_worktree_stray`).
 - Includes and hook links into the project folder (`git_include_inside`, `git_hook_link_inside`), which [not covered](../safety/git-protection.md#not-covered) describes.
 
+## On Linux hosts
+
+Linux hosts have no immutable flag that a user can set, so devvm locks nothing there, and every VM that mounts its folder gets `off` as its mode. devvm watches the paths it would lock instead, and names what changed after the fact (`git_changed`), which [Linux hosts](../safety/git-protection.md#when-devvm-names-a-change) tells the user how to check.
+
+devvm hashes the same paths that [what's locked](#whats-locked) lists, found in the same way. For a hooks folder, it hashes each entry below it, except git's `.sample` files, which git never runs. It hashes a regular file's contents with SHA-256, opened with `O_NOFOLLOW` and `O_NONBLOCK` and checked to be a regular file once it's open. It never reads through a symlink, so it records a symlink by where it points, and a path under a symlink, such as `.git/config` when `.git` is a symlink, by that fact alone. Anything else, such as a FIFO, is recorded by its type. The work is bounded: past 1,000 entries, a hooks folder is recorded by that count, and a file larger than 16 MiB by its size.
+
+The hashes go in the VM's state, in the `git` section's `watched`, by each path relative to the project folder, with `scanned` set once a check has recorded them. devvm records them when it creates the VM, and checks them again on each launch that finds the VM stopped and on `devvm stop`, the same places that check the locks on macOS. Each check names every path whose hash changed, appeared or went since the last one, in one warning, and then records the new hashes. A launch of a running VM checks nothing. A VM whose state has no `watched` yet, such as one an older devvm made, or one that `devvm adopt` gave this folder, records its first hashes without naming anything.
+
+Each launch also warns that the VM can change `.git` (`git_unprotected`), unless the folder has no `.git` or the VM is a `--clone` VM. The warning stops once the user has chosen the mode, which devvm records as the `git` section's `chosen`: `devvm git-protect off` sets it, and so does `--no-git-protect` when devvm creates the VM.
+
 ## What a lock can't stop
 
 The VM can rename `.git` and put a new one in its place, add `.git/commondir` to point git at another config, or do the same with a linked worktree's folder in `.git/worktrees`. When devvm creates the VM, and [on each launch](#on-each-launch), it reports a `commondir` that's there, linked worktrees whose `commondir` leads somewhere else, and paths it couldn't lock because they're symlinks. devvm doesn't repair anything, so check what it names before you run git in the folder. When you don't trust what runs in the VM, use [`--clone`](../using/clone.md), which mounts no `.git` at all.

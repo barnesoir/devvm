@@ -2034,8 +2034,15 @@ other = "The project folder has set-user-id or set-group-id files, which run as 
 description = "files is a space-separated list of paths"
 other = "The project folder has set-id files owned by root, which run as root for anyone who runs them: {{.files}}. Don't run them, and delete them with sudo rm FILE."
 
-[git_protect_needs_macos_new]
-other = ".git protection needs macOS, so this VM can change the hooks and config in .git, which run on this machine. To keep a VM out of .git, use devvm --clone."
+[git_unprotected]
+other = ".git protection needs macOS, so {{.vm}} can change the hooks and config in .git, which run on this machine. To keep a VM out of .git, use devvm --clone, or run devvm git-protect off to stop this warning."
+
+[git_unprotected_quiet]
+other = "devvm stops warning about .git at each launch of {{.vm}}, and it still names the hooks and config in .git that change."
+
+[git_changed]
+description = "paths is a comma-separated list of paths relative to the project folder"
+other = "WARNING: {{.paths}} changed since devvm last checked, perhaps by {{.vm}}, and git on this machine runs what they hold. devvm can tell you only after the fact, so if you didn't change them, check them before you run git here."
 
 [no_vm_git_protect]
 other = "There's no VM for {{.dir}}. Run devvm to make one, or devvm --no-git-protect to make one without .git protection."

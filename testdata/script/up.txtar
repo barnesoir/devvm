@@ -23,8 +23,8 @@ stdout '^==> starting vm=devvm-web-[0-9a-f]{14}$'
 # None of devvm's own files written out: they stay in the binary.
 ! exists $XDG_DATA_HOME/devvm/assets
 # .git unprotected off macOS, and devvm says so.
-[darwin] ! stderr git_protect_needs_macos_new
-[linux] stderr '^devvm: git_protect_needs_macos_new$'
+[darwin] ! stderr git_unprotected
+[linux] stderr '^devvm: git_unprotected vm=devvm-web-[0-9a-f]{14}$'
 stub_calls
 stdout '^limactl clone --tty=false devvm-img-[0-9a-f]{12} devvm-web-[0-9a-f]{14} --mount-none --set \.mounts = \[\{"location":"[^"]*/web","writable":true\},\{"location":"[^"]*/data/devvm/tools","mountPoint":"/mnt/devvm-tools","writable":false\}\] --set \.ssh\.forwardAgent=false --set \.ssh\.localPort=[1-9][0-9]+ --set \.portForwards = \[\{"guestIP":"127\.0\.0\.1","guestPortRange":\[1,65535\],"proto":"any","ignore":true\},\{"guestIP":"0\.0\.0\.0","guestPortRange":\[1,65535\],"proto":"any","ignore":true\},\{"guestIP":"::","guestPortRange":\[1,65535\],"proto":"any","ignore":true\}\] --set \.propagateProxyEnv=true --set \.env = \{"NODE_EXTRA_CA_CERTS":.*\}$'
 # Its first start's one edit: its proxy in its environment (the
@@ -98,7 +98,7 @@ stub_reset
 exec devvm --network open --no-git-protect
 ! stdout building_image
 stderr '^devvm: ssh_remote_hint vm=devvm-api-[0-9a-f]{14}$'
-! stderr git_protect_needs_macos_new
+! stderr git_unprotected
 stub_calls
 ! stdout chflags
 vm_name API api

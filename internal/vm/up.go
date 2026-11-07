@@ -175,9 +175,9 @@ type newVM struct {
 	size  Size
 	ports string
 	net   netpolicy.Tier
-	agent string // sshagent.On or Off
-	clone bool   // --clone
-	git   string // its .git protection (gitprotect.Protector.NewMode), or gitprotect.Clone
+	agent string          // sshagent.On or Off
+	clone bool            // --clone
+	git   gitprotect.InVM // its .git protection (gitprotect.Protector.NewSection), or gitprotect.Clone's
 	// from is the container image its base starts from: --from's, or its
 	// devcontainer.json's image, pinned.
 	from string
@@ -458,9 +458,9 @@ func (e creation) plan(ctx context.Context, o Options, f project.Folder, b backe
 		n.agent = sshagent.On
 	}
 	if o.Clone {
-		n.clone, n.git = true, gitprotect.Clone
+		n.clone, n.git = true, gitprotect.InVM{Mode: gitprotect.Clone}
 	} else {
-		n.git = e.Protector(f.Dir).NewMode(o.NoGitProtect)
+		n.git = e.Protector(f.Dir).NewSection(o.NoGitProtect)
 	}
 	// Its ports, which devvm's forwarder forwards from the backend's ssh,
 	// and a clone, copied in and fetched over ssh.
@@ -613,7 +613,7 @@ func (n newVM) record(st *state.VM, tg tools.Target, files []string) error {
 	}
 	for _, err := range []error{
 		netpolicy.Set(st, netpolicy.Net{Tier: n.net}),
-		gitprotect.Set(st, gitprotect.InVM{Mode: n.git}),
+		gitprotect.Set(st, n.git),
 		sshagent.Set(st, sshagent.InVM{Mode: n.agent}),
 		tools.Set(st, tools.InVM{Names: n.tools, Made: tools.Made{Files: files, Libc: tg.Libc, Glibc: tg.Glibc}}),
 		ports.Set(st, ports.Ports{Forward: forward}),

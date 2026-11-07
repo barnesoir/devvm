@@ -69,4 +69,19 @@ The lock covers `.git`, and the VM can still put things elsewhere that git on th
 
 ## Linux hosts
 
-Linux has no immutable flag that a user can set, so VMs on Linux hosts have no `.git` protection, and the VM can change `.git` hooks and config, which run on the host. devvm says so when it creates a VM for a folder with a `.git`, and it refuses `devvm git-protect on` and `strict`. [`--clone`](../using/clone.md) keeps the VM out of `.git` instead.
+Linux has no immutable flag that a user can set, so VMs on Linux hosts have no `.git` protection, and the VM can change `.git` hooks and config, which run on the host. devvm refuses `devvm git-protect on` and `strict` there, and [`--clone`](../using/clone.md) keeps the VM out of `.git` instead, so use it for any repo where you don't trust what runs in the VM.
+
+### The warning at each launch
+
+Each launch of a VM that mounts a folder with a `.git` warns that the VM can change its hooks and config, which run on this machine. That includes the launch that creates the VM, and launches of a VM that's already running. Once you've read the warning and decided to go on without protection, run `devvm git-protect off` in the folder. devvm records that you chose it and stops warning for that VM, but it still names the changes that the next section describes. A VM that you create with `--no-git-protect` doesn't warn either, and a `--clone` VM never warns, because it mounts no `.git`.
+
+### When devvm names a change
+
+devvm can't stop the VM from changing `.git` on a Linux host, but it notices the change afterwards. When devvm creates a VM, it records a hash of each path that a lock would cover on macOS, which are the hooks in `.git/hooks`, `.git/config` and the rest of [what's locked](../internals/git-protection.md#whats-locked), submodules' included. Each launch that finds the VM stopped, and `devvm stop`, hash them again and name every path that changed since the last check, such as `.git/config` and `.git/hooks/pre-commit`. A launch of a VM that's already running checks nothing, so run `devvm stop` when you want the check. A VM that devvm has no hashes for yet, such as one that an older devvm made, records them at its first check and names nothing.
+
+devvm names a change only after it happened, so git on this machine may already have run a changed hook or read a changed config. devvm can't tell who made a change, so it also names your own, such as a `git remote add` or `git push -u` that you ran on this machine. When it names a path that you didn't change, check it before you run git in the folder:
+
+- `git config --list --show-origin` shows each setting of the repo and the file it comes from. Look for settings that run a program, such as `core.fsmonitor`, `core.hooksPath`, `core.sshCommand`, `core.pager`, `filter.*` and `include.path`.
+- `ls -la .git/hooks` lists the hooks, and git runs a hook there by its name, such as `pre-commit`, so read every file whose name doesn't end in `.sample`.
+
+If you find something that you didn't put there, remove it, and use [`--clone`](../using/clone.md) for that repo.

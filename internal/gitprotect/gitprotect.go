@@ -35,12 +35,18 @@ import (
 const Section = "git"
 
 // InVM is a VM's .git protection section: its mode, as asked (recorded
-// before its backend makes it, so it's never unset), the mode chosen
-// while it ran, and what protecting it found.
+// before its backend makes it, so it's never unset), whether the user
+// chose it, the mode chosen while it ran, and what protecting it found;
+// on hosts without locks, what watching it found.
 type InVM struct {
-	Mode string `json:"mode"`           // On, Strict, Off, or Clone for a --clone VM
-	Next string `json:"next,omitempty"` // the mode chosen while the VM ran, set when it's next stopped
-	Made Made   `json:"made,omitzero"`
+	Mode string `json:"mode"` // On, Strict, Off, or Clone for a --clone VM
+	// Chosen is set once the user chose the mode (--no-git-protect,
+	// devvm git-protect), rather than the host: off chosen on a host
+	// without locks quiets the launches' warning (WarnUnprotected).
+	Chosen  bool    `json:"chosen,omitempty"`
+	Next    string  `json:"next,omitempty"` // the mode chosen while the VM ran, set when it's next stopped
+	Made    Made    `json:"made,omitzero"`
+	Watched Watched `json:"watched,omitzero"`
 }
 
 // Made is what protecting a VM's .git found, and checks compare with.
@@ -115,29 +121,33 @@ func New(dir, home string, r msg.Reporter) *Protector {
 	}
 }
 
-// NewMode is the protection a new VM gets, recorded before its backend
-// makes it: off when asked, or on hosts without locks (saying so when
-// there's a .git); otherwise on, which NewVM sets up once it's made.
-func (p *Protector) NewMode(off bool) string {
+// NewSection is the protection a new VM gets, recorded before its
+// backend makes it: off when asked (chosen), or on hosts without locks,
+// whose launches warn (WarnUnprotected); otherwise on, which NewVM sets
+// up once it's made.
+func (p *Protector) NewSection(off bool) InVM {
 	switch {
 	case off:
-		return Off
+		return InVM{Mode: Off, Chosen: true}
 	case !p.CanLock:
-		if exists(p.git()) {
-			p.Warn(msg.GitProtectNeedsMacosNew())
-		}
-		return Off
+		return InVM{Mode: Off}
 	}
-	return On
+	return InVM{Mode: On}
 }
 
 // NewVM sets up the protection of a VM just made for the folder,
-// stopped, as its mode says (NewMode): on locks .git and reports what a
-// lock can't cover.
+// stopped, as its mode says (NewSection): on locks .git and reports what
+// a lock can't cover. On a host without locks, it records the watch's
+// first sums instead, so the next check names what changed since.
 func (p *Protector) NewVM(ctx context.Context, vm *state.VM) error {
 	g, err := Of(vm)
-	if err != nil || g.Mode != On && g.Mode != Strict || !p.CanLock {
+	switch {
+	case err != nil:
 		return err
+	case !p.CanLock && g.Mode != Clone:
+		return watcher{p}.watch(ctx, vm, Watched{})
+	case g.Mode != On && g.Mode != Strict || !p.CanLock:
+		return nil
 	}
 	made, err := p.protect(ctx, g, whyNew, false)
 	if err != nil {
@@ -178,7 +188,7 @@ func SetNext(ctx context.Context, vm *state.VM, mode string) error {
 // sets diff.ignoreSubmodules=all in the locked .git/config, which on and
 // off take out again; off unlocks. On and strict need macOS. Once it's
 // set, a mode saved for the VM's next stop (SetNext) is dropped: both
-// are recorded at once.
+// are recorded at once, with the mode as the user's choice (Chosen).
 func (p *Protector) Set(ctx context.Context, vm *state.VM, mode string) error {
 	g, err := Of(vm)
 	if err != nil {
@@ -192,7 +202,7 @@ func (p *Protector) Set(ctx context.Context, vm *state.VM, mode string) error {
 				return err
 			}
 		}
-		return record(ctx, vm, func(g *InVM) { g.Mode, g.Next = Off, "" })
+		return record(ctx, vm, func(g *InVM) { g.Mode, g.Chosen, g.Next = Off, true, "" })
 	}
 	if !p.CanLock {
 		return msg.GitProtectOnNeedsMacos()
@@ -211,7 +221,7 @@ func (p *Protector) Set(ctx context.Context, vm *state.VM, mode string) error {
 	if err != nil {
 		return err
 	}
-	return record(ctx, vm, func(g *InVM) { g.Mode, g.Next, g.Made = mode, "", made })
+	return record(ctx, vm, func(g *InVM) { g.Mode, g.Chosen, g.Next, g.Made = mode, true, "", made })
 }
 
 // ignoreSubmodules sets diff.ignoreSubmodules=all in .git/config, or takes
@@ -262,13 +272,21 @@ func (p *Protector) warnDelegations(ds []delegation) {
 // folder when they change. Locks are set only while the VM is stopped
 // (running), so nothing in it can race them; a running VM gets them at
 // its next start. A VM whose protection was never set up (its creation
-// stopped short, or devvm adopt moved it) gets it as a new VM does.
+// stopped short, or devvm adopt moved it) gets it as a new VM does. On a
+// host without locks, a stopped VM's .git is watched instead, whatever
+// its mode: what a lock would cover that changed since the last check is
+// named (watch).
 func (p *Protector) Check(ctx context.Context, vm *state.VM, running bool) error {
 	g, err := Of(vm)
 	switch {
 	case err != nil:
 		return err
-	case g.Mode != On && g.Mode != Strict, !p.CanLock:
+	case !p.CanLock:
+		if running || g.Mode == Clone {
+			return nil
+		}
+		return watcher{p}.watch(ctx, vm, g.Watched)
+	case g.Mode != On && g.Mode != Strict:
 		return nil
 	case !g.Made.Protected:
 		if running {
@@ -382,7 +400,7 @@ func (p *Protector) abs(rel []string) []string {
 func (p *Protector) rel(dirs []string) []string {
 	var out []string
 	for _, d := range dirs {
-		out = append(out, strings.TrimPrefix(d, p.Dir+"/"))
+		out = append(out, relTo(p.Dir, d))
 	}
 	return out
 }
@@ -663,7 +681,7 @@ func commonOf(g string) (string, bool) {
 // working tree. A path that isn't an existing folder counts by name and
 // resolved as far as it exists.
 func (p *Protector) hooksPathInside(hp string) bool {
-	hp = p.expandHome(hp)
+	hp = expandHome(p.Home, hp)
 	if !filepath.IsAbs(hp) {
 		return true
 	}
@@ -673,10 +691,10 @@ func (p *Protector) hooksPathInside(hp string) bool {
 	return paths.Within(filepath.Clean(hp), p.Dir) || paths.Within(physicalParent(hp), p.Dir)
 }
 
-// expandHome expands ~ as git does.
-func (p *Protector) expandHome(path string) string {
+// expandHome expands ~ as git does, to home.
+func expandHome(home, path string) string {
 	if path == "~" || strings.HasPrefix(path, "~/") {
-		return p.Home + path[1:]
+		return home + path[1:]
 	}
 	return path
 }
@@ -705,7 +723,7 @@ func (p *Protector) delegations(ctx context.Context, emb embeds) []delegation {
 			if !ok || len(v) == 0 {
 				continue
 			}
-			path := p.expandHome(string(v))
+			path := expandHome(p.Home, string(v))
 			if !filepath.IsAbs(path) {
 				path = filepath.Join(d, path)
 			}

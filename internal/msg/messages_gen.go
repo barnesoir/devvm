@@ -1379,6 +1379,11 @@ func GitAppeared() M {
 	return M{id: "git_appeared"}
 }
 
+// GitChanged is [git_changed]: "WARNING: {{.paths}} changed since devvm last checked, perhaps by {{.vm}}, and git on this machine runs what they hold. devvm can tell you only after the fact, so if you didn't change them, check them before you run git here."
+func GitChanged(paths string, vm string) M {
+	return M{id: "git_changed", vals: []val{{"paths", paths}, {"vm", vm}}}
+}
+
 // GitCommondir is [git_commondir]: "WARNING: If you didn't make {{.git}}/commondir, check it before you run git here. It makes git read config from {{.target}}."
 func GitCommondir(git string, target string) M {
 	return M{id: "git_commondir", vals: []val{{"git", git}, {"target", target}}}
@@ -1454,11 +1459,6 @@ func GitProtectFailed(reason string) M {
 	return M{id: "git_protect_failed", vals: []val{{"reason", reason}}}
 }
 
-// GitProtectNeedsMacosNew is [git_protect_needs_macos_new]: ".git protection needs macOS, so this VM can change the hooks and config in .git, which run on this machine. To keep a VM out of .git, use devvm --clone."
-func GitProtectNeedsMacosNew() M {
-	return M{id: "git_protect_needs_macos_new"}
-}
-
 // GitProtectNextStop is [git_protect_next_stop]: "{{.vm}} is running, so devvm turns its .git protection {{.mode}} when the VM next stops. Run devvm stop or devvm restart to apply it now."
 func GitProtectNextStop(mode string, vm string) M {
 	return M{id: "git_protect_next_stop", vals: []val{{"mode", mode}, {"vm", vm}}}
@@ -1477,6 +1477,16 @@ func GitReplaced(git string) M {
 // GitUnlocked is [git_unlocked]: "devvm unlocked .git, so {{.vm}} can change its hooks and config, which run on this machine. To lock it again, run devvm git-protect on."
 func GitUnlocked(vm string) M {
 	return M{id: "git_unlocked", vals: []val{{"vm", vm}}}
+}
+
+// GitUnprotected is [git_unprotected]: ".git protection needs macOS, so {{.vm}} can change the hooks and config in .git, which run on this machine. To keep a VM out of .git, use devvm --clone, or run devvm git-protect off to stop this warning."
+func GitUnprotected(vm string) M {
+	return M{id: "git_unprotected", vals: []val{{"vm", vm}}}
+}
+
+// GitUnprotectedQuiet is [git_unprotected_quiet]: "devvm stops warning about .git at each launch of {{.vm}}, and it still names the hooks and config in .git that change."
+func GitUnprotectedQuiet(vm string) M {
+	return M{id: "git_unprotected_quiet", vals: []val{{"vm", vm}}}
 }
 
 // GitWorktreeStray is [git_worktree_stray]: "WARNING: If you didn't change {{.wt}}/commondir, check it before you run git in that linked worktree. It doesn't lead back to this repo, so git there reads config and hooks from somewhere else."
@@ -4261,6 +4271,7 @@ var specs = map[string]spec{
 	"gc_tools_no_vm":                 {plural: true, fields: []string{"count", "size", "tools"}},
 	"gc_unfinished":                  {fields: []string{"key"}},
 	"git_appeared":                   {},
+	"git_changed":                    {fields: []string{"paths", "vm"}},
 	"git_commondir":                  {fields: []string{"git", "target"}},
 	"git_config_failed":              {fields: []string{"config"}},
 	"git_embedded_new":               {fields: []string{"git"}},
@@ -4276,11 +4287,12 @@ var specs = map[string]spec{
 	"git_not_locked":                 {fields: []string{"path"}},
 	"git_protect_clone":              {fields: []string{"vm"}},
 	"git_protect_failed":             {fields: []string{"reason"}},
-	"git_protect_needs_macos_new":    {},
 	"git_protect_next_stop":          {fields: []string{"mode", "vm"}},
 	"git_protect_on_needs_macos":     {},
 	"git_replaced":                   {fields: []string{"git"}},
 	"git_unlocked":                   {fields: []string{"vm"}},
+	"git_unprotected":                {fields: []string{"vm"}},
+	"git_unprotected_quiet":          {fields: []string{"vm"}},
 	"git_worktree_stray":             {fields: []string{"wt"}},
 	"github_token_howto":             {},
 	"group_already":                  {fields: []string{"group", "vm"}},

@@ -59,10 +59,10 @@ func newFixture(t *testing.T, name string) *fixture {
 }
 
 // newVM sets up protection as up does for a VM just made: its mode
-// (NewMode), recorded, then NewVM.
+// (NewSection), recorded, then NewVM.
 func (f *fixture) newVM(off bool) error {
-	mode := f.p.NewMode(off)
-	if err := record(f.t.Context(), f.vm, func(g *InVM) { g.Mode = mode }); err != nil {
+	n := f.p.NewSection(off)
+	if err := record(f.t.Context(), f.vm, func(g *InVM) { g.Mode, g.Chosen = n.Mode, n.Chosen }); err != nil {
 		return err
 	}
 	return f.p.NewVM(f.t.Context(), f.vm)
@@ -539,30 +539,27 @@ func TestSetNext(t *testing.T) {
 	}
 }
 
-// Off: nothing is locked. On hosts without locks it's off, saying so when
-// there's a .git.
+// Off: nothing is locked, and off is the user's choice. On hosts without
+// locks it's off, not chosen, and creating says nothing: the launches
+// warn (WarnUnprotected).
 func TestNewVMOffAndLinux(t *testing.T) {
 	f := newFixture(t, "p")
 	mkdirs(t, f.path(".git/hooks"))
 	if err := f.newVM(true); err != nil {
 		t.Fatal(err)
 	}
-	if Mode(f.vm) != "off" || len(f.flags) > 0 || len(f.warns.Names()) > 0 {
-		t.Errorf("off: %s, locks %q, warnings %q", Mode(f.vm), f.flags, f.warns.Names())
+	if Mode(f.vm) != "off" || !f.section().Chosen || len(f.flags) > 0 || len(f.warns.Names()) > 0 {
+		t.Errorf("off: %s, chosen %t, locks %q, warnings %q", Mode(f.vm), f.section().Chosen, f.flags, f.warns.Names())
 	}
 	f.p.CanLock = false
 	if err := f.newVM(false); err != nil {
 		t.Fatal(err)
 	}
-	if Mode(f.vm) != "off" || len(f.flags) > 0 || !slices.Equal(f.warns.Names(), []string{"git_protect_needs_macos_new"}) {
-		t.Errorf("linux: %s, locks %q, warnings %q", Mode(f.vm), f.flags, f.warns.Names())
+	if Mode(f.vm) != "off" || f.section().Chosen || len(f.flags) > 0 || len(f.warns.Names()) > 0 {
+		t.Errorf("linux: %s, chosen %t, locks %q, warnings %q", Mode(f.vm), f.section().Chosen, f.flags, f.warns.Names())
 	}
 	if err := os.RemoveAll(f.path(".git")); err != nil {
 		t.Fatal(err)
-	}
-	f.warns.Reset()
-	if err := f.newVM(false); err != nil || len(f.warns.Names()) > 0 {
-		t.Errorf("linux without .git: %v, warnings %q", err, f.warns.Names())
 	}
 	f.p.CanLock = true
 	if err := f.newVM(false); err != nil || Mode(f.vm) != "on" || len(f.flags) > 0 {
@@ -902,7 +899,7 @@ func TestNewHome(t *testing.T) {
 	t.Setenv("HOME", "/elsewhere")
 	p := New("/p", "/h", nil)
 	for in, want := range map[string]string{"~": "/h", "~/x": "/h/x", "~x/y": "~x/y", "/a": "/a"} {
-		if got := p.expandHome(in); got != want {
+		if got := expandHome(p.Home, in); got != want {
 			t.Errorf("expandHome(%q) = %q, want %q", in, got, want)
 		}
 	}

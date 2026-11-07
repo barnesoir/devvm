@@ -10,7 +10,9 @@ vm_name WEB web
 stub_reset
 exec devvm
 ! stdout 'starting|creating'
-! stderr .
+# Each launch on Linux says .git is unprotected (git_watch.txtar).
+[!linux] ! stderr .
+[linux] stderr '\Adevvm: git_unprotected vm=devvm-web-[0-9a-f]{14}\n\z'
 stub_calls
 ! stdout 'limactl (start|stop|clone|create|edit|delete)'
 stdout '^limactl shell --workdir / devvm-web-[0-9a-f]{14} sh -c .*tar -xf - '

@@ -693,16 +693,16 @@ func (e Lifecycle) canSwitch(ctx context.Context, t *target, p remakeInVM, o Rem
 
 // switchedTo sets st's sections for the clone mode a remake made its new
 // machine in (clone: CloneOn, CloneOff, or "" for the VM's): its own
-// clone, made as its shell opens, or the folder mounted, with mode its
-// .git protection (gitprotect.Protector.NewMode). What the old machine's
-// mode left on the host stays recorded until the old machine is gone
-// (leftBehind): .git's locks, or the clone's remote.
-func switchedTo(st *state.VM, clone, mode string) error {
+// clone, made as its shell opens, or the folder mounted, with git its
+// .git protection (gitprotect.Protector.NewSection). What the old
+// machine's mode left on the host stays recorded until the old machine is
+// gone (leftBehind): .git's locks, or the clone's remote.
+func switchedTo(st *state.VM, clone string, git gitprotect.InVM) error {
 	switch clone {
 	case CloneOn:
 		return state.SetSection(st, cloneSection, cloneInVM{On: true})
 	case CloneOff:
-		if err := gitprotect.Set(st, gitprotect.InVM{Mode: mode}); err != nil {
+		if err := gitprotect.Set(st, git); err != nil {
 			return err
 		}
 		return edit(st, cloneSection, func(c *cloneInVM) error { c.On = false; return nil })

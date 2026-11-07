@@ -22,7 +22,7 @@ exec devvm git-protect
 [darwin] stdout '\Aon\n\z'
 [linux] stdout '\Aoff\n\z'
 [linux] exec devvm git-protect off
-[linux] stdout '^==> git_unlocked vm=devvm-web-[0-9a-f]{14}$'
+[linux] stdout '^==> git_unprotected_quiet vm=devvm-web-[0-9a-f]{14}$'
 [linux] ! exec devvm git-protect strict
 [linux] stderr '^devvm: git_protect_on_needs_macos$'
 [linux] stop 'no locks off macOS'

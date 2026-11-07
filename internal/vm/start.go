@@ -45,7 +45,8 @@ type upOpts struct {
 // agent folder mounts matched to the host's, and a running VM that gets
 // changes at its next start stopped once the user agrees
 // (restartForNextStart); its
-// project folder checked on the host (hostChecks); what it needs of its
+// project folder checked on the host (hostChecks), and on a host without
+// .git locks, a warning that its .git is unprotected (WarnUnprotected); what it needs of its
 // backend refused where the backend can't (requirements); the user's
 // agent checked for keys when it forwards it; then a stopped VM started
 // (start), or a running one gone on with as it runs (runningConfinement),
@@ -77,6 +78,7 @@ func (s starter) bringUp(ctx context.Context, t *target, o upOpts) (backend.Conf
 	if err := s.hostChecks(ctx, t, running, o.made); err != nil {
 		return backend.Confinement{}, err
 	}
+	s.Protector(t.f.Dir).WarnUnprotected(st)
 	need, err := startNeeds(st, in)
 	if err != nil {
 		return backend.Confinement{}, err
@@ -366,7 +368,8 @@ func (s starter) refuse(b backend.Backend, vm string, fs []backend.Feature) erro
 // its .git locked as its protection says (NewVM), the SSH origin it
 // can't push to without an agent named, and its set-id files. A VM that
 // exists gets its .git checked under the protection it ran with
-// (gitprotect's Check), so what it changed meanwhile is named; then, once
+// (gitprotect's Check), so what it changed meanwhile is named (on a host
+// without locks, what changed of what a lock would cover); then, once
 // it's stopped, the protection chosen while it ran is set, and its set-id
 // files are named (not while it runs: the walk is slow). devvm stop does
 // the latter too.

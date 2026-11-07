@@ -495,7 +495,7 @@ func projectGit(s *S, w *webVM) {
 	p, vm := w.p, w.vm
 	if runtime.GOOS != "darwin" {
 		s.Check("off on Linux (no chflags), and says so", func() error {
-			if w.state(s)["git.mode"] != "off" || !grepF(w.launch, s.Msg("git_protect_needs_macos_new")) {
+			if w.state(s)["git.mode"] != "off" || !grepF(w.launch, s.Msg("git_unprotected", "vm="+vm)) {
 				return errors.New("git protection isn't off, or the launch didn't say so")
 			}
 			return nil
@@ -781,6 +781,7 @@ func projectGitProtect(s *S, w *webVM) {
 			}
 			return nil
 		})
+		projectGitWatch(s, w)
 		return
 	}
 	s.Check("a swapped .git is reported", func() error {
@@ -877,6 +878,35 @@ func projectGitProtect(s *S, w *webVM) {
 		}
 		return nil
 	})
+}
+
+// projectGitWatch: on Linux, .git/config that the VM changes is named
+// when devvm stop finds it, after the fact; then the VM is as it was.
+func projectGitWatch(s *S, w *webVM) {
+	p, vm := w.p, w.vm
+	s.Check("on Linux, devvm stop names the .git/config the VM changed", func() error {
+		if _, err := DevvmIn(s, p, "exit\n", nil); err != nil {
+			return err
+		}
+		if _, err := s.InVM(vm, "printf '[e2e]\\n\\twatched = vm\\n' >> "+p+"/.git/config"); err != nil {
+			return err
+		}
+		r, err := s.Devvm(p, "stop")
+		if err != nil {
+			return err
+		}
+		if !grepF(r.Out, s.Msg("git_changed", "paths=.git/config", "vm="+vm)) {
+			return errors.New("devvm stop didn't name .git/config:\n" + r.Out)
+		}
+		if again, _ := s.Devvm(p, "stop"); grepF(again.Out, s.Msg("git_changed", "paths=.git/config", "vm="+vm)) {
+			return errors.New("named twice:\n" + again.Out)
+		}
+		return nil
+	})
+	// Put back, and recorded as that by another devvm stop, then started again.
+	_, _ = s.Run(Cmd{Args: []string{"git", "config", "--unset", "e2e.watched"}, Dir: p})
+	_, _ = s.Devvm(p, "stop")
+	_, _ = DevvmIn(s, p, "exit\n", nil)
 }
 
 // claudeSlug is the name Claude Code gives a folder's sessions' folder.
