@@ -62,6 +62,7 @@ func networkSection(s *S) {
 	netSetup(n)
 	netLaunch(n)
 	netBlocks(n)
+	netPiTools(n)
 	netLoopback(n)
 	netCorp(n)
 	netCAs(n)
@@ -1010,8 +1011,8 @@ func netOpencodeKeys(n *netRun) {
 const piKey = "sk-ant-e2efake-pi"
 
 // pi in the network VM: it runs from its read-only shared image with its
-// version check and install report off, and the fd it would download is
-// base's. devvm agent login pi --api-key saves a fake Anthropic key in
+// version check and install report off, and its start finds base's fd
+// (fdfind) and rg rather than downloading its own. devvm agent login pi --api-key saves a fake Anthropic key in
 // the store; the VM's pi gets only its placeholder, and pi's own request
 // to Anthropic's API, which the run's fake answers, carries the key the
 // VM's proxy put in, logged nowhere.
@@ -1023,8 +1024,8 @@ func netPi(n *netRun) {
 			return errors.New("pi --version failed")
 		case vmOut(s, vm, "printenv PI_SKIP_VERSION_CHECK") != "1" || vmOut(s, vm, "printenv PI_TELEMETRY") != "0":
 			return errors.New("PI_SKIP_VERSION_CHECK isn't 1, or PI_TELEMETRY isn't 0")
-		case inVM(s, vm, "command -v fdfind || command -v fd") != nil:
-			return errors.New("base has no fd for pi")
+		case inVM(s, vm, "fdfind --version && rg --version") != nil:
+			return errors.New("base has no fdfind or rg for pi")
 		case inVM(s, vm, `d=$(dirname "$(mise which pi)") && [ -d "$d" ] && ! touch "$d/devvm-e2e" 2>/dev/null`) != nil:
 			return errors.New("pi's install can be written to")
 		}
@@ -1056,6 +1057,53 @@ func netPi(n *netRun) {
 		}
 		return NoLeak([]string{piKey}, filepath.Join(n.vmd, "logs"), filepath.Join(s.Paths.Devvm, "logs"))
 	}, Tail(40))
+}
+
+// pi's terminal UI looks for fd (as fd or fdfind) and rg as it starts,
+// and downloads each it doesn't find into ~/.pi/agent/bin, unpinned, from
+// GitHub, which the allowlist has. With base's on the PATH it downloads
+// neither. The control: with a PATH that has no fdfind, the same start
+// downloads fd, so the start did reach that check. It runs before the
+// checks behind the run's company proxies, which refuse GitHub.
+func netPiTools(n *netRun) {
+	s, vm := n.s, n.vm
+	s.Check("pi's start finds base's fdfind and rg, and downloads neither; without fdfind it downloads fd", func() error {
+		const bin = "~/.pi/agent/bin"
+		if err := inVM(s, vm, "rm -rf "+bin+" && "+piStart(`"$PATH"`)); err != nil {
+			return failed("pi's start", err)
+		}
+		if got := vmOut(s, vm, "ls -A "+bin+" 2>/dev/null"); got != "" {
+			return errors.New("pi downloaded " + got + " into " + bin + " with base's tools on the PATH")
+		}
+		hidden := vmOut(s, vm, `d=$(mktemp -d) && for b in /usr/local/bin/* /usr/bin/* /bin/*; do n=${b##*/}; `+
+			`case $n in fd|fdfind) continue ;; esac; [ -e "$d/$n" ] || ln -s "$b" "$d/$n"; done && echo "$HOME/.local/share/mise/shims:$d"`)
+		if hidden == "" {
+			return errors.New("no PATH without fdfind")
+		}
+		defer func() { _ = inVM(s, vm, "rm -rf "+bin+" "+shell.Quote(hidden[strings.LastIndex(hidden, ":")+1:])) }()
+		if err := inVM(s, vm, piStart(shell.Quote(hidden))); err != nil {
+			return failed("pi's start without fdfind", err)
+		}
+		if inVM(s, vm, "test -x "+bin+"/fd") != nil {
+			var gh []string
+			for l := range strings.Lines(readText(n.events)) {
+				if strings.Contains(l, "github") {
+					gh = append(gh, strings.TrimRight(l, "\n"))
+				}
+			}
+			return errors.New("the control failed: without fdfind, pi's start downloaded no fd, so it may never have looked\n" +
+				"the proxy's last GitHub events:\n" + strings.Join(gh[max(0, len(gh)-5):], "\n"))
+		}
+		return nil
+	}, Tail(40))
+}
+
+// piStart is the script that starts pi's terminal UI in the VM with PATH
+// path (shell-quoted), in a terminal of script's (util-linux), lets it
+// run for 30 s, then ends it.
+func piStart(path string) string {
+	return "cd ~ && { TERM=xterm-256color PATH=" + path + ` script -qfec 'stty cols 120 rows 40; exec pi --no-session' /dev/null </dev/null >/dev/null 2>&1 & p=$!; }; ` +
+		`sleep 30; pkill -x pi; kill "$p" 2>/dev/null; wait "$p" 2>/dev/null; true`
 }
 
 // opencodeWhy is what the VM's opencode got: the IDs of opencode.sh's
