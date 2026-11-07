@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/devvmhq/devvm/internal/shell"
 	"github.com/devvmhq/devvm/internal/state"
 )
 
@@ -217,8 +218,47 @@ func TestOpencodeCleanNoCmd(t *testing.T) {
 		t.Error("devvm_opencode_clean passes sqlite3 a -cmd")
 	}
 	runs, untrusted := strings.Count(script, "sqlite3 -bail"), strings.Count(script, "PRAGMA trusted_schema = OFF;")
-	if runs != 5 || untrusted != runs {
+	if runs != 6 || untrusted != runs {
 		t.Errorf("%d sqlite3 runs, %d turn trusted_schema off", runs, untrusted)
+	}
+}
+
+// opencodeClean fails closed with a sqlite3 that doesn't do what it's
+// asked: one that runs nothing, prints nothing and exits 0, as sqlite3
+// 3.54 did with -bail and an SQL -cmd, and one that copies the database
+// but skips the DELETEs its stdin holds, so the logins stay.
+func TestOpencodeCleanFailsClosed(t *testing.T) {
+	needSqlite(t)
+	real, err := exec.LookPath("sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stubs := map[string]string{
+		"runs nothing": "#!/bin/sh\nexit 0\n",
+		// With only -bail and the database, the SQL is on stdin.
+		"skips deletes": "#!/bin/sh\nif [ $# -eq 2 ]; then grep -v '^DELETE' | " + shell.Quote(real) + ` "$@"; else exec ` +
+			shell.Quote(real) + " \"$@\"; fi\n",
+	}
+	for name, stub := range stubs {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			db := filepath.Join(dir, "opencode.db")
+			opencodeDB(t, db)
+			bin := t.TempDir()
+			if err := state.WriteFileMode(filepath.Join(bin, "sqlite3"), []byte(stub), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			if err := runOpencodeClean(t, db); err == nil {
+				t.Error("it made a copy")
+			}
+			if name == "skips deletes" {
+				// The stub did copy it, logins and all: the check caught it.
+				if data, err := os.ReadFile(filepath.Join(dir, "clean.db")); err != nil || !bytes.Contains(data, []byte(plantedKey)) { //nolint:gosec // the test's own file
+					t.Errorf("the stub's copy doesn't hold the planted key: %v", err)
+				}
+			}
+		})
 	}
 }
 

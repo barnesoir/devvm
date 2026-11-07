@@ -105,9 +105,11 @@ const opencodeWellknown = `key LIKE 'wellknown:config:%'`
 // deletes the kv rows opencodeWellknown picks and takes
 // opencodeAuthImport's record out, then turns WAL off and rebuilds the
 // file (secure_delete and VACUUM), so no page of it keeps a deleted row.
-// It fails when the VM has no sqlite3, when any step fails or when a
-// table it emptied or kv has a row it should have deleted, and the caller then
-// leaves the database out. The schema's own functions stay off
+// It fails when the VM has no sqlite3, when any step fails, when the
+// copy has fewer tables than DB or none, or unless each count of rows
+// left (the triggers, each table it emptied, kv's rows it deleted)
+// prints 0, so a sqlite3 that runs nothing and prints nothing fails too;
+// the caller then leaves the database out. The schema's own functions stay off
 // (trusted_schema), as an imported database is the export's: each
 // sqlite3 gets that pragma first in its own input, never in -cmd, as
 // sqlite3 3.54 with -bail stops after an SQL -cmd and runs nothing
@@ -124,19 +126,28 @@ func opencodeClean() string {
 		`SELECT printf('SELECT count(*) FROM "%w";', name) FROM sqlite_master WHERE ` + opencodeLogins + ";\n" +
 		`SELECT 'SELECT count(*) FROM kv WHERE ` + wellknown + `;' FROM sqlite_master WHERE type = 'table' AND name = 'kv';`
 	const untrusted = "PRAGMA trusted_schema = OFF;"
+	tables := shell.Quote("SELECT count(*) FROM sqlite_master WHERE type = 'table';")
 	// sql runs sqlite3 on clean.db with untrusted first, then its
 	// arguments, or its stdin when it has none.
 	sql := "sqlite3 -bail clean.db '" + untrusted + "'"
 	return strings.Join([]string{
 		"devvm_opencode_clean() {",
-		"  local s c left",
+		"  local t s c left",
 		"  rm -f clean.db clean.db-journal clean.db-wal clean.db-shm &&",
-		`  sqlite3 -bail "$1" '.timeout 10000' '` + untrusted + `' "VACUUM INTO 'clean.db'" >/dev/null &&`,
+		// The copy, then the original's count of tables, which the copy
+		// must have too: a copy that isn't made, or is empty, fails.
+		`  t=$(sqlite3 -bail "$1" '.timeout 10000' '` + untrusted + `' "VACUUM INTO 'clean.db'" ` + tables + `) || return 1`,
+		`  case $t in '' | 0 | *[!0-9]*) return 1 ;; esac`,
+		`  [ "$(` + sql + " " + tables + `)" = "$t" ] &&`,
 		"  s=$(" + sql + " " + shell.Quote(gen) + ") &&",
 		`  printf '` + untrusted + `\nPRAGMA journal_mode = DELETE;\nPRAGMA secure_delete = ON;\n%s\nVACUUM;\n' "$s" | sqlite3 -bail clean.db >/dev/null &&`,
-		"  c=$(" + sql + " " + shell.Quote(check) + ") &&",
-		`  left=$(printf '` + untrusted + `\n%s\n' "$c" | sqlite3 -bail clean.db) || return 1`,
-		`  case $left in *[!0[:space:]]*) return 1 ;; esac`,
+		// check's first statement, the triggers' count, is always there,
+		// and each of its statements must print one 0: no output, or
+		// less, fails too.
+		"  c=$(" + sql + " " + shell.Quote(check) + ") && [ -n \"$c\" ] &&",
+		`  left=$(printf '` + untrusted + `\n%s\n' "$c" | sqlite3 -bail clean.db) && [ -n "$left" ] &&`,
+		`  [ "$(printf '%s\n' "$left" | grep -cx 0)" = "$(printf '%s\n' "$c" | grep -c '')" ] &&`,
+		`  ! printf '%s\n' "$left" | grep -qvx 0 || return 1`,
 		"  [ ! -e clean.db-wal ] && [ ! -e clean.db-journal ]",
 		"}",
 	}, "\n")
