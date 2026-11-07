@@ -108,7 +108,10 @@ const opencodeWellknown = `key LIKE 'wellknown:config:%'`
 // It fails when the VM has no sqlite3, when any step fails or when a
 // table it emptied or kv has a row it should have deleted, and the caller then
 // leaves the database out. The schema's own functions stay off
-// (trusted_schema), as an imported database is the export's.
+// (trusted_schema), as an imported database is the export's: each
+// sqlite3 gets that pragma first in its own input, never in -cmd, as
+// sqlite3 3.54 with -bail stops after an SQL -cmd and runs nothing
+// else, exiting 0.
 func opencodeClean() string {
 	// opencodeWellknown in an SQL string literal, its quotes doubled.
 	wellknown := strings.ReplaceAll(opencodeWellknown, "'", "''")
@@ -120,16 +123,19 @@ func opencodeClean() string {
 	check := `SELECT 'SELECT count(*) FROM sqlite_master WHERE type = ''trigger'';';` + "\n" +
 		`SELECT printf('SELECT count(*) FROM "%w";', name) FROM sqlite_master WHERE ` + opencodeLogins + ";\n" +
 		`SELECT 'SELECT count(*) FROM kv WHERE ` + wellknown + `;' FROM sqlite_master WHERE type = 'table' AND name = 'kv';`
-	sql := "sqlite3 -bail -cmd 'PRAGMA trusted_schema = OFF'"
+	const untrusted = "PRAGMA trusted_schema = OFF;"
+	// sql runs sqlite3 on clean.db with untrusted first, then its
+	// arguments, or its stdin when it has none.
+	sql := "sqlite3 -bail clean.db '" + untrusted + "'"
 	return strings.Join([]string{
 		"devvm_opencode_clean() {",
 		"  local s c left",
 		"  rm -f clean.db clean.db-journal clean.db-wal clean.db-shm &&",
-		`  ` + sql + ` -cmd '.timeout 10000' "$1" "VACUUM INTO 'clean.db'" >/dev/null &&`,
-		"  s=$(" + sql + " clean.db " + shell.Quote(gen) + ") &&",
-		`  printf 'PRAGMA journal_mode = DELETE;\nPRAGMA secure_delete = ON;\n%s\nVACUUM;\n' "$s" | ` + sql + " clean.db >/dev/null &&",
-		"  c=$(" + sql + " clean.db " + shell.Quote(check) + ") &&",
-		`  left=$(printf '%s\n' "$c" | ` + sql + " clean.db) || return 1",
+		`  sqlite3 -bail "$1" '.timeout 10000' '` + untrusted + `' "VACUUM INTO 'clean.db'" >/dev/null &&`,
+		"  s=$(" + sql + " " + shell.Quote(gen) + ") &&",
+		`  printf '` + untrusted + `\nPRAGMA journal_mode = DELETE;\nPRAGMA secure_delete = ON;\n%s\nVACUUM;\n' "$s" | sqlite3 -bail clean.db >/dev/null &&`,
+		"  c=$(" + sql + " " + shell.Quote(check) + ") &&",
+		`  left=$(printf '` + untrusted + `\n%s\n' "$c" | sqlite3 -bail clean.db) || return 1`,
 		`  case $left in *[!0[:space:]]*) return 1 ;; esac`,
 		"  [ ! -e clean.db-wal ] && [ ! -e clean.db-journal ]",
 		"}",

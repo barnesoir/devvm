@@ -208,6 +208,20 @@ func TestOpencodeClean(t *testing.T) {
 	})
 }
 
+// opencodeClean passes no sqlite3 -cmd, which sqlite3 3.54 with -bail
+// runs alone, skipping the rest of its input and exiting 0, so the copy
+// would be empty; and each of its sqlite3 runs turns trusted_schema off.
+func TestOpencodeCleanNoCmd(t *testing.T) {
+	script := opencodeClean()
+	if strings.Contains(script, "-cmd") {
+		t.Error("devvm_opencode_clean passes sqlite3 a -cmd")
+	}
+	runs, untrusted := strings.Count(script, "sqlite3 -bail"), strings.Count(script, "PRAGMA trusted_schema = OFF;")
+	if runs != 5 || untrusted != runs {
+		t.Errorf("%d sqlite3 runs, %d turn trusted_schema off", runs, untrusted)
+	}
+}
+
 // opencodeFixture is opencode 2.2.5's own schema, which sqlite3 printed
 // in a VM; Maintaining says when to refresh it.
 const opencodeFixture = "testdata/opencode-2.2.5.sql"
