@@ -98,7 +98,9 @@ func pickFeatures(u *ui.UI) func([]build.Feature) []build.Feature {
 		for i, f := range fs {
 			choices[i] = ui.Choice{Name: f.Name, Desc: f.Desc, On: f.On}
 		}
-		picked := u.Pick(msg.FeaturesHelp(), []ui.Section{{Choices: choices}})[0].Choices
+		// A list that couldn't show keeps the features as they were.
+		sections, _ := u.Pick(msg.FeaturesHelp(), []ui.Section{{Choices: choices}})
+		picked := sections[0].Choices
 		out := make([]build.Feature, len(picked))
 		for i, c := range picked {
 			out[i] = build.Feature{Name: c.Name, Desc: c.Desc, On: c.On}

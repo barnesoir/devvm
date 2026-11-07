@@ -44,15 +44,10 @@ func rawTerminal() (restore func(), err error) {
 // over every choice but the fixed ones, space toggles, enter confirms. It
 // returns the sections as chosen. Without a terminal to read from and
 // print to, it returns them as given. Ctrl+C ends the run as interrupted.
-func (u *UI) Pick(help msg.M, sections []Section) []Section {
-	out, _ := u.PickChecked(help, sections)
-	return out
-}
-
-// PickChecked is Pick, and why the picker couldn't show when it can
-// (CanPick): the terminal wouldn't go into raw mode. A caller that mustn't
-// go on with the choices as given refuses then.
-func (u *UI) PickChecked(help msg.M, sections []Section) ([]Section, error) {
+// Where the picker can show (CanPick) but the terminal won't go into raw
+// mode, it returns them as given and why (pick_failed): a caller that
+// mustn't go on with the choices it started with refuses then.
+func (u *UI) Pick(help msg.M, sections []Section) ([]Section, error) {
 	out := make([]Section, len(sections))
 	for i, s := range sections {
 		out[i] = Section{Heading: s.Heading, Choices: slices.Clone(s.Choices)}

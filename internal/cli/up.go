@@ -92,7 +92,8 @@ func pickParts(u *ui.UI) func(msg.M, []vm.PickPart) []vm.PickPart {
 				sections[i].Choices = append(sections[i].Choices, ui.Choice{Name: r.Name, Desc: u.Text(r.Desc), On: r.On, Fixed: r.Fixed})
 			}
 		}
-		picked := u.Pick(help, sections)
+		// A list that couldn't show keeps the parts as they were.
+		picked, _ := u.Pick(help, sections)
 		out := make([]vm.PickPart, len(parts))
 		for i, p := range parts {
 			out[i] = vm.PickPart{Heading: p.Heading, Rows: slices.Clone(p.Rows)}
@@ -104,15 +105,15 @@ func pickParts(u *ui.UI) func(msg.M, []vm.PickPart) []vm.PickPart {
 	}
 }
 
-// pickMany is the VM environment's PickMany: the UI's PickChecked over
-// rows, without a heading.
+// pickMany is the VM environment's PickMany: the UI's Pick over rows,
+// without a heading, with why it couldn't show.
 func pickMany(u *ui.UI) func(msg.M, []vm.PickRow) ([]vm.PickRow, error) {
 	return func(help msg.M, rows []vm.PickRow) ([]vm.PickRow, error) {
 		choices := make([]ui.Choice, len(rows))
 		for i, r := range rows {
 			choices[i] = ui.Choice{Name: r.Name, Desc: u.Text(r.Desc), On: r.On, Fixed: r.Fixed}
 		}
-		picked, err := u.PickChecked(help, []ui.Section{{Choices: choices}})
+		picked, err := u.Pick(help, []ui.Section{{Choices: choices}})
 		out := slices.Clone(rows)
 		for i := range out {
 			out[i].On = picked[0].Choices[i].On

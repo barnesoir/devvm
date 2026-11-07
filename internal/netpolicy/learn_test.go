@@ -222,7 +222,7 @@ func TestLearned(t *testing.T) {
 		at(s(11), "tunnel", "bad host", 443, ""),
 		at(s(12), "tunnel", "denied.test", 443, ""),
 		at(s(13), "forward", "registry.npmjs.org", 80, "npm/10.9.2"),
-		at(s(14), "tunnel", "cdn.example.com", 443, "ㅤnpm/1"),
+		at(s(14), "tunnel", "cdn.example.com", 443, string(rune(0x3164))+"npm/1"),
 		`not json`,
 	)
 	j := Judge{
@@ -317,7 +317,9 @@ func TestAgentWord(t *testing.T) {
 	long := strings.Repeat("x", agentMax+1)
 	for ua, want := range map[string]string{
 		"": "", "  ": "", "npm/10 node/24": "npm/10", "curl/8.5.0": "curl/8.5.0", "Go-http-client/1.1": "Go-http-client/1.1",
-		long: "", long[:agentMax]: long[:agentMax], "​npm/1": "", "ｎｐｍ/1": "", "⠀": "", "a\x1b[2Jb": "", "x;y": "",
+		long: "", long[:agentMax]: long[:agentMax], "a\x1b[2Jb": "", "x;y": "",
+		// Zero-width, full-width, braille blank and Hangul filler: never shown.
+		string(rune(0x200b)) + "npm/1": "", string([]rune{0xff4e, 0xff50, 0xff4d}) + "/1": "", string(rune(0x2800)): "", string(rune(0x3164)): "",
 	} {
 		if got := agentWord(ua); got != want {
 			t.Errorf("agentWord(%q) = %q, want %q", ua, got, want)

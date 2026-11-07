@@ -73,7 +73,7 @@ func TestPickFitsTheTerminal(t *testing.T) {
 		u, out, _ := testUI(t, tc.keys)
 		pickTerminal(u)
 		u.termSize = func() (int, int) { return 60, 20 }
-		got := u.Pick(msg.MsgUnknown("x"), []Section{{Choices: many}})[0].Choices
+		got := picked(t, u, []Section{{Choices: many}})[0].Choices
 		if n := len(onOf(got)); n != tc.on {
 			t.Errorf("%q: %d on, want %d", tc.keys, n, tc.on)
 		}
@@ -105,16 +105,27 @@ func TestPickFitsTheTerminal(t *testing.T) {
 	}
 }
 
-// Where the terminal won't go into raw mode, PickChecked says why and
-// leaves the choices as they were; Pick goes on with them.
-func TestPickCheckedRawFails(t *testing.T) {
+// picked is what u's Pick returns for sections under a help of its own,
+// which mustn't fail.
+func picked(t *testing.T, u *UI, sections []Section) []Section {
+	t.Helper()
+	got, err := u.Pick(msg.MsgUnknown("x"), sections)
+	if err != nil {
+		t.Errorf("Pick = %v", err)
+	}
+	return got
+}
+
+// Where the terminal won't go into raw mode, Pick says why and leaves
+// the choices as they were.
+func TestPickRawFails(t *testing.T) {
 	t.Parallel()
 	u, _, _ := testUI(t, "")
 	pickTerminal(u)
 	u.rawInput = func() (func(), error) { return nil, errors.New("no tty") }
-	got, err := u.PickChecked(msg.MsgUnknown("x"), []Section{{Choices: choices()}})
+	got, err := u.Pick(msg.MsgUnknown("x"), []Section{{Choices: choices()}})
 	if msg.NamesOf(err) != "pick_failed reason=no tty" || !slices.Equal(onOf(got[0].Choices), []string{"a", "b"}) {
-		t.Errorf("PickChecked = %q, %v", onOf(got[0].Choices), msg.NamesOf(err))
+		t.Errorf("Pick = %q, %v", onOf(got[0].Choices), msg.NamesOf(err))
 	}
 }
 
@@ -138,7 +149,7 @@ func TestPickKeys(t *testing.T) {
 			u, out, _ := testUI(t, tc.keys)
 			restored := pickTerminal(u)
 			in := choices()
-			got := u.Pick(msg.MsgUnknown("x"), []Section{{Choices: in}})[0].Choices
+			got := picked(t, u, []Section{{Choices: in}})[0].Choices
 			if !slices.Equal(onOf(got), tc.want) {
 				t.Errorf("chosen %q, want %q", onOf(got), tc.want)
 			}
@@ -238,7 +249,7 @@ func TestPickSectionsKeys(t *testing.T) {
 			u, out, _ := testUI(t, tc.keys)
 			pickTerminal(u)
 			in := sections()
-			got := u.Pick(msg.MsgUnknown("x"), in)
+			got := picked(t, u, in)
 			if !slices.Equal(onOfAll(got), tc.want) {
 				t.Errorf("chosen %q, want %q", onOfAll(got), tc.want)
 			}
@@ -265,7 +276,7 @@ func TestPickFixedDim(t *testing.T) {
 	u, out, _ := testUI(t, "\r")
 	pickTerminal(u)
 	u.outStyle = style{on: true}
-	u.Pick(msg.MsgUnknown("x"), sections())
+	picked(t, u, sections())
 	if s := out.String(); !strings.Contains(s, "\033["+sgrDim+"m  [x] x") || strings.Contains(s, "\033["+sgrDim+"m> [x] a") {
 		t.Errorf("output %q: fixed rows not dim, or a movable one dim", s)
 	}
@@ -276,7 +287,7 @@ func TestPickAllFixed(t *testing.T) {
 	t.Parallel()
 	u, _, _ := testUI(t, " j\r")
 	pickTerminal(u)
-	got := u.Pick(msg.MsgUnknown("x"), []Section{{Choices: []Choice{{Name: "x", On: true, Fixed: true}}}})
+	got := picked(t, u, []Section{{Choices: []Choice{{Name: "x", On: true, Fixed: true}}}})
 	if !slices.Equal(onOfAll(got), []string{"x"}) {
 		t.Errorf("chosen %q", onOfAll(got))
 	}
@@ -306,7 +317,7 @@ func TestPickNoInput(t *testing.T) {
 	u, out, _ := testUI(t, " \r")
 	restored := pickTerminal(u)
 	u.SetFlags(Flags{NoInput: true})
-	got := u.Pick(msg.MsgUnknown("x"), []Section{{Choices: choices()}})[0].Choices
+	got := picked(t, u, []Section{{Choices: choices()}})[0].Choices
 	if !slices.Equal(onOf(got), []string{"a", "b"}) || out.Len() != 0 || *restored != 0 {
 		t.Errorf("chosen %q, printed %q, raw mode %d: want the choices as given, nothing printed", onOf(got), out, *restored)
 	}
@@ -326,7 +337,7 @@ func TestPickOneWithoutTerminal(t *testing.T) {
 func TestPickWithoutTerminal(t *testing.T) {
 	t.Parallel()
 	u, out, _ := testUI(t, " \r")
-	got := u.Pick(msg.MsgUnknown("x"), []Section{{Choices: choices()}})[0].Choices
+	got := picked(t, u, []Section{{Choices: choices()}})[0].Choices
 	if !slices.Equal(onOf(got), []string{"a", "b"}) || out.Len() != 0 {
 		t.Errorf("chosen %q, printed %q: want the choices as given, nothing printed", onOf(got), out)
 	}
@@ -336,7 +347,7 @@ func TestPickCtrlC(t *testing.T) {
 	t.Parallel()
 	u, _, _ := testUI(t, "j\x03 \r")
 	restored := pickTerminal(u)
-	if code := exitCode(func() { u.Pick(msg.MsgUnknown("x"), []Section{{Choices: choices()}}) }); code != InterruptedCode {
+	if code := exitCode(func() { picked(t, u, []Section{{Choices: choices()}}) }); code != InterruptedCode {
 		t.Errorf("exit code %d, want %d", code, InterruptedCode)
 	}
 	if !u.Interrupted() || *restored != 1 {
