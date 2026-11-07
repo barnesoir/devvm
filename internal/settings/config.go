@@ -118,8 +118,11 @@ func decodeConfig(path string) (*configFile, error) {
 		}
 		return nil, c
 	}
+	k := cf.PassKeys.unknown()
 	if keys := md.Undecoded(); len(keys) > 0 {
-		k := keys[0].String()
+		k = keys[0].String()
+	}
+	if k != "" {
 		return nil, &state.CorruptError{Path: path, Line: keyLine(string(data), k), Reason: fmt.Sprintf("unknown key %q", k)}
 	}
 	return &cf, nil
@@ -135,7 +138,7 @@ func (c *configFile) refused() (msg.M, bool) {
 	for _, v := range []refuser{
 		&c.Network, &c.Ports, &c.Features, &c.Agents, &c.Layers, &c.Size.CPUs, &c.Size.Memory, &c.Size.Disk,
 		&r.Logs.Runs, &r.History.Age, &r.History.Count, &r.Tools.UnusedAge, &r.Orphans.Age, &r.NixCache.Size,
-		&c.Proxy.HTTPS, &c.Proxy.HTTP, &c.Proxy.NoProxy, &c.UbuntuMirror, &c.PassKeys.Pi,
+		&c.Proxy.HTTPS, &c.Proxy.HTTP, &c.Proxy.NoProxy, &c.UbuntuMirror, c.PassKeys,
 	} {
 		if m, ok := v.refusal(); ok {
 			return m, true

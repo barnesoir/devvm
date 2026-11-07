@@ -29,17 +29,18 @@ func heredoc(t *testing.T, start, end string) string {
 }
 
 // Every VM's shells get the tools' environment from base's
-// /etc/profile.d/devvm-tools.sh, which turns off the agents'
-// self-updates and pi's check for a newer pi: their installs are
-// read-only shared tools, and mise pins their versions. It turns off
-// .NET's telemetry, first-run banner, profile edit and workload update
-// check too, and pi's install report, and puts its global tools on the
-// PATH. Non-login shells read it too (BASH_ENV), but not
-// devvm-telemetry.sh, so pi's switch isn't there.
+// /etc/profile.d/devvm-tools.sh, which reads the agents' environment
+// (their self-updates, version checks and telemetry off) from
+// /etc/devvm/agents.sh, which every launch's setup writes, so base holds
+// none of it: their installs are read-only shared tools, and mise pins
+// their versions. It turns off .NET's telemetry, first-run banner,
+// profile edit and workload update check too, and puts its global tools
+// on the PATH. Non-login shells read it too (BASH_ENV), but not
+// devvm-telemetry.sh, so no agent's switch is there.
 func TestToolsEnvironment(t *testing.T) {
 	block := heredoc(t, "sudo tee /etc/profile.d/devvm-tools.sh >/dev/null <<'SH'", "SH")
 	for _, line := range []string{
-		"export DISABLE_AUTOUPDATER=1", "export OPENCODE_DISABLE_AUTOUPDATE=1", "export PI_SKIP_VERSION_CHECK=1", "export PI_TELEMETRY=0",
+		"if [ -r /etc/devvm/agents.sh ]; then . /etc/devvm/agents.sh; fi",
 		"export DOTNET_CLI_TELEMETRY_OPTOUT=1", "export DOTNET_NOLOGO=1",
 		"export DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false", "export DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=true",
 	} {
@@ -53,8 +54,10 @@ func TestToolsEnvironment(t *testing.T) {
 		}
 	}
 	telemetry := heredoc(t, "sudo tee /etc/profile.d/devvm-telemetry.sh >/dev/null <<'SH'", "SH")
-	if strings.Contains(telemetry, "PI_") {
-		t.Error("devvm-telemetry.sh, which only login shells read, sets pi's switches")
+	for _, v := range []string{"DISABLE_AUTOUPDATER=", "DISABLE_TELEMETRY=", "DISABLE_ERROR_REPORTING=", "OPENCODE_", "PI_"} {
+		if strings.Contains(block, "export "+v) || strings.Contains(telemetry, "export "+v) {
+			t.Errorf("base sets %s, an agent's, which the setup's agents.sh sets", v)
+		}
 	}
 }
 

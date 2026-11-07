@@ -8,15 +8,18 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/devvmhq/devvm/internal/agents"
 )
 
 // KeyProviders are the providers whose API keys devvm agent login saves
-// for kind, sorted: Codex's one, OpenAI's, which needs no name, and the
-// opencode and pi providers whose keys the proxy puts in (opencodeAPI).
-// Any other's key would reach the VM as it is, so it's never saved this
-// way.
-func KeyProviders(kind string) []string {
-	if kind == Opencode || kind == Pi {
+// for the agent, sorted, when it saves one for each (agents.ProviderKeys):
+// those whose keys the proxy puts in (opencodeAPI). None for an agent with
+// one key (agents.OneKey: Codex's, OpenAI's, which needs no name) or none.
+// Any other provider's key would reach the VM as it is, so it's never
+// saved this way.
+func KeyProviders(agent string) []string {
+	if d, ok := agents.Get(agent); ok && d.Keys == agents.ProviderKeys {
 		return slices.Sorted(maps.Keys(opencodeAPI))
 	}
 	return nil
@@ -43,7 +46,7 @@ func OpencodeImport(vmCopy []byte) ([]byte, error) {
 		e := obj(m, id)
 		var v map[string]any
 		switch {
-		case str(e, "type") == "api" && slices.Contains(KeyProviders(Opencode), id) && str(e, "key") != "":
+		case str(e, "type") == "api" && slices.Contains(KeyProviders(agents.Opencode), id) && str(e, "key") != "":
 			v = map[string]any{"type": "key", "key": str(e, "key")}
 		case str(e, "type") == "oauth" && id == "openai" && str(e, "access") != "":
 			// opencode 2 (checked at v2.2.5) needs a method, Codex's in a browser, whose tokens
@@ -68,17 +71,23 @@ func OpencodeImport(vmCopy []byte) ([]byte, error) {
 }
 
 // SetKey saves key as the agent's API key in f, the store's login file,
-// under its lock, in the agent's own format: Codex's auth.json becomes an
-// API-key login, as codex login --with-api-key makes it, its ChatGPT login
-// gone, and opencode's and pi's get provider's entry, of KeyProviders,
-// their other providers kept (a pi entry's env too).
+// under its lock, in the agent's own format (its keyFormat): for an agent
+// with one key (agents.OneKey) with no provider, as Codex's auth.json
+// becomes an API-key login, as codex login --with-api-key makes it, its
+// ChatGPT login gone; for one with a key for each provider
+// (agents.ProviderKeys) as provider's entry, of KeyProviders, the other
+// providers kept (a pi entry's env too).
 func (f File) SetKey(provider, key string) error {
 	if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n") {
 		return errors.New("the API key is empty or more than one line")
 	}
+	d, _ := agents.Get(f.Kind)
+	fm, ok := formats()[f.Kind].(keyFormat)
 	switch {
-	case f.Kind == Codex && provider == "":
-	case (f.Kind == Opencode || f.Kind == Pi) && slices.Contains(KeyProviders(f.Kind), provider):
+	case !ok:
+		return errKeyProvider
+	case d.Keys == agents.OneKey && provider == "":
+	case d.Keys == agents.ProviderKeys && slices.Contains(KeyProviders(f.Kind), provider):
 	default:
 		return errKeyProvider
 	}
@@ -91,38 +100,21 @@ func (f File) SetKey(provider, key string) error {
 	if err != nil {
 		return err
 	}
-	switch f.Kind {
-	case Codex:
-		m = map[string]any{"auth_mode": "apikey", "OPENAI_API_KEY": key}
-	case Pi:
-		e := map[string]any{"type": "api_key", "key": key}
-		if env := obj(obj(m, provider), "env"); len(env) > 0 {
-			e["env"] = env
-		}
-		m[provider] = e
-	default:
-		m[provider] = map[string]any{"type": "api", "key": key}
-	}
-	return writeRefreshed(f.Path, m)
+	return writeRefreshed(f.Path, fm.setKey(m, provider, key))
 }
 
-// ChatGPT is the ChatGPT login the store's login file f holds: Codex's,
-// or opencode's OpenAI login, with the account's email when its tokens
-// name one; ok is false when it holds none.
+// ChatGPT is the ChatGPT login the store's login file f holds, of a
+// format that can hold one (chatGPTFormat): Codex's, or opencode's OpenAI
+// login, with the account's email when its tokens name one; ok is false
+// when it holds none.
 func (f File) ChatGPT() (email string, ok bool, err error) {
 	m, err := readLogin(f.Path)
 	if err != nil {
 		return "", false, err
 	}
 	var tokens []string
-	switch f.Kind {
-	case Codex:
-		t := obj(m, "tokens")
-		tokens = []string{str(t, "id_token"), str(t, "access_token")}
-	case Opencode:
-		if e := obj(m, "openai"); str(e, "type") == "oauth" {
-			tokens = []string{str(e, "access")}
-		}
+	if fm, ok := formats()[f.Kind].(chatGPTFormat); ok {
+		tokens = fm.chatGPT(m)
 	}
 	if len(tokens) == 0 || tokens[len(tokens)-1] == "" {
 		return "", false, nil

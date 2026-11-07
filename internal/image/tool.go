@@ -16,6 +16,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/msg"
 )
 
@@ -72,19 +73,26 @@ type ToolDef struct {
 }
 
 // SharedTools are the shared tools, in the fixed order a VM's list holds
-// them: the toolchains, then the agents. Every list of shared tools
-// derives from it: Toolchains, Agents, GroupTools, what a project's files
-// call for, and the devcontainer features devvm maps.
-var SharedTools = []ToolDef{
+// them: the toolchains, then the agents, one for each of agents.Defs.
+// Every list of shared tools derives from it: Toolchains, Agents,
+// GroupTools, what a project's files call for, and the devcontainer
+// features devvm maps.
+var SharedTools = append([]ToolDef{
 	{Name: "node", Kind: Toolchain, Members: []string{"node", "pnpm", "bun"}, Detect: []string{"package.json", "bun.lock", "bun.lockb"}},
 	{Name: "python", Kind: Toolchain, Members: []string{"python", "uv"}, Detect: []string{"pyproject.toml", "requirements.txt", "uv.lock", "setup.py", "Pipfile"}},
 	{Name: "rust", Kind: Toolchain, Members: []string{"rust"}, Detect: []string{"Cargo.toml"}, Installer: Rustup},
 	{Name: "go", Kind: Toolchain, Members: []string{"go"}, Detect: []string{"go.mod"}},
 	{Name: "dotnet", Kind: Toolchain, Members: []string{"dotnet"}, Detect: []string{"*.sln", "*.slnx", "*.csproj", "*.fsproj", "global.json"}, Installer: DotnetSDK},
-	{Name: "claude", Kind: Agent, Members: []string{"claude"}},
-	{Name: "codex", Kind: Agent, Members: []string{"codex"}},
-	{Name: "opencode", Kind: Agent, Members: []string{"opencode"}},
-	{Name: "pi", Kind: Agent, Members: []string{"pi"}, GlibcOnly: true},
+}, agentTools()...)
+
+// agentTools are the agents' shared tools, each its own one tool in the
+// lock, in agents.Defs' order.
+func agentTools() []ToolDef {
+	out := make([]ToolDef, len(agents.Defs))
+	for i, d := range agents.Defs {
+		out[i] = ToolDef{Name: d.Name, Kind: Agent, Members: []string{d.Name}, GlibcOnly: d.GlibcOnly}
+	}
+	return out
 }
 
 // Toolchains are the shared toolchains' names, in SharedTools' order.
@@ -172,8 +180,7 @@ func NoDownload(tool string) bool { return installerOf(tool) == Rustup }
 func OwnDownload(tool string) bool { return installerOf(tool) == DotnetSDK }
 
 // GlibcOnly reports whether a tool in the lock has builds for glibc
-// alone (its shared tool's GlibcOnly): pi, whose releases have none for
-// musl.
+// alone (its shared tool's GlibcOnly, an agent's agents.Def's).
 func GlibcOnly(tool string) bool {
 	for _, d := range SharedTools {
 		if slices.Contains(d.Members, tool) {

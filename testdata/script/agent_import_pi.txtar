@@ -40,8 +40,8 @@ project p
 stub_reset
 exec devvm --network open --no-git-protect --agents pi
 vm_name P p
-stderr '^devvm: pi_login_withheld providers=groq, openai-codex$'
-! stderr pi_login_kept
+stderr '^devvm: login_withheld agent=pi name=pi providers=groq, openai-codex$'
+! stderr login_passed
 stderr '^pi_settings_dropped keys=httpProxy selfUpdateCommand sessionDir vm=devvm-p-[0-9a-f]{14}$'
 stderr '^devvm: pi_trusts_all vm=devvm-p-[0-9a-f]{14}$'
 exec tar -xOf $STUB_DIR/sync.tar links
@@ -64,8 +64,8 @@ grep '"name":"pi-anthropic"' $P_dir/run/secrets.json
 # config.toml's [pass-keys] gives the VM groq's key as it is, noted.
 cp $WORK/pass.toml $CFG/config.toml
 exec devvm host
-stderr '^pi_login_kept providers=groq$'
-stderr '^devvm: pi_login_withheld providers=openai-codex$'
+stderr '^login_passed agent=pi providers=groq$'
+stderr '^devvm: login_withheld agent=pi name=pi providers=openai-codex$'
 exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/auth.json
 stdout '"key": "gsk-local"'
 ! stdout testfake

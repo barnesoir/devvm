@@ -35,6 +35,7 @@ func TestPassKeys(t *testing.T) {
 		"[pass-keys]\npi = [\"a\", \"a\"]\n":          2,
 		"[pass-keys]\npi = \"ollama\"\n":              2,
 		"# x\n[pass-keys]\nopencode = [\"ollama\"]\n": 3,
+		"[pass-keys]\npi = []\nnone = [\"ollama\"]\n": 3,
 	} {
 		write(t, d.ConfigFile(), config)
 		_, err := PassKeys(d, "pi")

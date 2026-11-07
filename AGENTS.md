@@ -21,7 +21,8 @@ devvm: one isolated VM per project folder, cloned from a base image, with toolch
 | `internal/tools/` | the shared tools: the lock, host mise, the daily check, tool image builds, the share |
 | `internal/netpolicy/`, `internal/secrets/` | network policy (the choice, the VM's proxy, the self-check); tokens on the host and the VM's bindings |
 | `internal/trust/` | the user's CAs (`~/.config/devvm/ca`): read and checked, sent to VMs, build VMs' `Trust` scripts, the guest environment; each VM's own CA and its next (`InitCA`, in `vms/<hash>/run/ca/`) |
-| `internal/agentlogin/` | agents' login and settings files on the host: the VM's copies with placeholders, bindings, values and OAuth refresh (`File`), `Redact`, and `Restore`, which puts the store's values back for a VM's placeholders |
+| `internal/agents/` | the coding agents' registry (stdlib only): one `Def` each (shared tool, settings, logins, history, guest environment, login ways, `[pass-keys]`), which every list of the agents derives from; code of one agent's own names it by its constant (the structure test's `names`) |
+| `internal/agentlogin/` | agents' login and settings files on the host: the VM's copies with placeholders, bindings, values and OAuth refresh (`File`, a `format` per login kind), `Redact`, and `Restore`, which puts the store's values back for a VM's placeholders |
 | `internal/proxy/` | the proxy, run as `devvm _proxy`; see its `README.md` |
 | `internal/daemon/` | devvm's background processes (stdlib only): detached starts, pid files checked against the process's arguments, stopping (TERM, then KILL), readiness by status file, the lifeline; the only place a process is signalled by pid (forbidigo) |
 | `internal/desktop/` | devvm desktop's relay on the host: VNC's password checked here, then an ssh channel to the VM's socket, the viewer's clipboard dropped; passwords |
@@ -64,7 +65,7 @@ devvm: one isolated VM per project folder, cloned from a base image, with toolch
 - **In-VM scripts are bash 3.2-safe and shellcheck-clean** (`assets/`, `install.sh`): guard empty arrays (`${a[@]+"${a[@]}"}`), no associative arrays. Everything else is Go.
 - **Docs:** an easy-to-follow guide in full, joined sentences, every fact kept; write and edit prose with the docs-voice skill (Vale's `devvm.AIWords` fails on chatbot vocabulary). Every behavior change updates its page in `docs/content/docs/` in the same task. The README stays high level.
 - **Adding or changing a command** follows the cli skill (`.agents/skills/cli/`): its checklist, then its review.
-- **Adding or changing a shared tool** updates its page: `using/toolchains.md` for a toolchain, `using/coding-agents.md`'s Supported agents for an agent.
+- **Adding or changing a shared tool** updates its page: `using/toolchains.md` for a toolchain, `using/coding-agents.md`'s Supported agents for an agent, which follows Contributing's [Adding a coding agent](docs/content/docs/contributing/_index.md#adding-a-coding-agent).
 - **Docs by reader:** user pages (`getting-started/`, `using/`, `safety/`, `backends/`) say what devvm does and what you type, without repo paths, Go identifiers or message names; How it works (`internals/`) explains mechanisms; Contributing (`contributing/`) has repo paths and Go identifiers.
 - **Extend the owner, don't copy it:** before adding a helper, parser, path, file reader, message or table, find its owner and extend it; a new owner gets a forbidigo rule or a structure-test check only when a second copy would be a bug ([Contributing](docs/content/docs/contributing/_index.md#one-owner-for-each-concern)).
 - **Edit files with the editor tools,** not `sed`, `awk`, `python`, heredocs or `cat >`.

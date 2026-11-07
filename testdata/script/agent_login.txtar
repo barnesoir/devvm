@@ -21,9 +21,9 @@ stderr '^devvm: agent_login_claude_flag flag=--stdin$'
 ! exec devvm agent login codex --stdin
 stderr '^devvm: agent_login_stdin_alone agent=codex$'
 ! exec devvm agent login codex --api-key --provider anthropic
-stderr '^devvm: agent_login_provider_alone$'
+stderr '^devvm: agent_login_provider_alone agents=opencode, pi$'
 ! exec devvm agent login opencode --provider anthropic
-stderr '^devvm: agent_login_provider_alone$'
+stderr '^devvm: agent_login_provider_alone agents=opencode, pi$'
 ! exec devvm agent login opencode --api-key
 stderr '^devvm: agent_login_provider_needed agent=opencode providers=anthropic, openai, openrouter$'
 ! exec devvm agent login opencode --api-key --provider groq
@@ -32,11 +32,11 @@ stderr '^devvm: arg_not_choice choices=anthropic, openai, openrouter command=--p
 stderr '^devvm: flags_exclusive'
 # pi: an API key alone, for a provider of the three.
 ! exec devvm agent login pi
-stderr '^devvm: agent_login_pi_key_only$'
+stderr '^devvm: agent_login_key_only agent=pi$'
 ! exec devvm agent login pi --device-code
-stderr '^devvm: agent_login_pi_key_only$'
+stderr '^devvm: agent_login_key_only agent=pi$'
 ! exec devvm agent login pi --provider openai
-stderr '^devvm: agent_login_pi_key_only$'
+stderr '^devvm: agent_login_key_only agent=pi$'
 ! exec devvm agent login pi --api-key
 stderr '^devvm: agent_login_provider_needed agent=pi providers=anthropic, openai, openrouter$'
 ! exec devvm agent login pi --api-key --provider groq

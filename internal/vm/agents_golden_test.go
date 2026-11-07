@@ -8,9 +8,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/image"
 	"github.com/devvmhq/devvm/internal/paths"
 	"github.com/devvmhq/devvm/internal/secrets"
+)
+
+// pi's folders, as the tests name them.
+const (
+	piDir      = agents.PiFolder
+	piSessions = agents.PiFolder + "/sessions"
 )
 
 // golden compares got with testdata/golden/name, or writes it there with UPDATE_GOLDEN=1 in the
@@ -55,7 +62,7 @@ func TestAgentsGolden(t *testing.T) {
 	var out bytes.Buffer
 	line := func(parts ...string) { out.WriteString(strings.Join(parts, " ") + "\n") }
 	for _, a := range image.Agents {
-		line("agent", a, "folder", agentFolderOf[a])
+		line("agent", a, "folder", agents.Of(a).Folder)
 		line("  dirs", strings.Join(agentDirs(store, a), " "))
 		line("  files", strings.Join(agentFiles(store, a), " "))
 		line("  login", secrets.LoginRel(a), secrets.LoginFile(paths.Dirs{Data: "/d", Config: "/c"}, a))
@@ -84,8 +91,8 @@ func TestAgentsGolden(t *testing.T) {
 			line("listed", name, strconv.FormatBool(dir), agent, top, strconv.FormatBool(folder), strconv.FormatBool(ok))
 		}
 	}
-	line("history paths", strings.Join(historyPaths, " "))
-	line("history excludes", strings.Join(historyExcludes, " "))
+	line("history paths", strings.Join(agents.History(), " "))
+	line("history excludes", strings.Join(agents.HistoryExcludes(), " "))
 	line("import skips", strings.Join(importSkips(), " "))
 	line("save script, every agent")
 	out.WriteString(agentSaveScript(image.Agents) + "\n")

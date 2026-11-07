@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/backend"
 	"github.com/devvmhq/devvm/internal/backend/backendtest"
 	"github.com/devvmhq/devvm/internal/msg"
@@ -207,11 +208,11 @@ func TestPiSettingsFormat(t *testing.T) {
 		}
 	}
 	for _, rel := range []string{".pi/agent/settings.json", ".pi/agent/models.json", ".pi/agent/mcp.json"} {
-		if !slices.Contains(agentFilesOf["pi"], rel) {
+		if !slices.Contains(agentFiles(t.TempDir(), "pi"), rel) {
 			t.Errorf("%s isn't among pi's settings files", rel)
 		}
 	}
-	for _, d := range agentDirsOf["pi"] {
+	for _, d := range agents.Of("pi").Dirs {
 		if strings.HasPrefix(d, piSessions) || !strings.HasPrefix(d, piDir+"/") {
 			t.Errorf("pi's settings folder %s", d)
 		}

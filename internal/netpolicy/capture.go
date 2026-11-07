@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/devvmhq/devvm/internal/agentlogin"
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/image"
 	"github.com/devvmhq/devvm/internal/paths"
 	"github.com/devvmhq/devvm/internal/proxy"
@@ -40,14 +41,14 @@ func (c Capturer) vm(x proxy.Exchange) (*state.VM, string, string, error) {
 	if !st.Exists() || n.Made.ProxySalt == "" {
 		return nil, "", "", errors.New("the VM has no placeholders")
 	}
-	agents, own := x.Agents, image.AgentsOf(tools.Names(st))
-	if mine := slices.DeleteFunc(slices.Clone(agents), func(a string) bool { return !slices.Contains(own, a) }); len(mine) > 0 {
-		agents = mine
+	names, own := x.Agents, image.AgentsOf(tools.Names(st))
+	if mine := slices.DeleteFunc(slices.Clone(names), func(a string) bool { return !slices.Contains(own, a) }); len(mine) > 0 {
+		names = mine
 	}
-	agent := agentlogin.Pick(agents, x.UserAgent)
+	agent := agentlogin.Pick(names, x.UserAgent)
 	// Claude Code's capture replaces the login every VM with Claude Code uses, or deletes its
 	// token, so only a VM whose image has Claude Code makes one; another's gets nothing.
-	if agent == agentlogin.Claude && !slices.Contains(own, agentlogin.Claude) {
+	if agent == agents.Claude && !slices.Contains(own, agents.Claude) {
 		return nil, "", "", errors.New("the VM's image has no Claude Code")
 	}
 	return st, n.Made.ProxySalt, agent, nil

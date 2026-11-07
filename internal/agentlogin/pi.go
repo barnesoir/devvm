@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/proxy"
 )
 
@@ -48,7 +49,7 @@ func piBindings(m map[string]any, salt string) []proxy.Binding {
 	for _, id := range sortedKeys(m) {
 		if _, ok := piKey(m, id); ok {
 			p := opencodeAPI[id]
-			bs = append(bs, login(Pi, "pi-"+id, p.hosts, p.header, piPlaceholder(id, salt)))
+			bs = append(bs, login(agents.Pi, "pi-"+id, p.hosts, p.header, piPlaceholder(id, salt)))
 		}
 	}
 	return bs

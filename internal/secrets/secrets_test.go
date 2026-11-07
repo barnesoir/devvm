@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/devvmhq/devvm/internal/agentlogin"
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/msg"
 	"github.com/devvmhq/devvm/internal/paths"
 	"github.com/devvmhq/devvm/internal/platform"
@@ -270,7 +271,7 @@ func TestGet(t *testing.T) {
 	} {
 		writeLogin(t, s, kind, data)
 	}
-	mcp, err := agentlogin.File{Kind: agentlogin.Claude, Path: LoginFile(s.Dirs, "claude")}.Bindings()
+	mcp, err := agentlogin.File{Kind: agents.Claude, Path: LoginFile(s.Dirs, "claude")}.Bindings()
 	if err != nil || len(mcp) != 1 {
 		t.Fatalf("MCP bindings = %+v, %v", mcp, err)
 	}
@@ -315,9 +316,9 @@ func TestLoginFailed(t *testing.T) {
 	}{
 		{agentlogin.ErrCodexNoKey, "codex_no_key"},
 		{agentlogin.ErrCodexNoChatGPT, "codex_no_chatgpt"},
-		{&agentlogin.RefreshError{Agent: agentlogin.Codex, Err: cause}, "codex_refresh_failed reason=401 Unauthorized"},
-		{&agentlogin.RefreshError{Agent: agentlogin.Opencode, Provider: "openai", Err: cause}, "opencode_refresh_failed provider=openai reason=401 Unauthorized"},
-		{&agentlogin.RefreshError{Agent: agentlogin.Claude, Err: cause}, "claude_refresh_failed reason=401 Unauthorized"},
+		{&agentlogin.RefreshError{Agent: agents.Codex, Err: cause}, "codex_refresh_failed reason=401 Unauthorized"},
+		{&agentlogin.RefreshError{Agent: agents.Opencode, Provider: "openai", Err: cause}, "opencode_refresh_failed provider=openai reason=401 Unauthorized"},
+		{&agentlogin.RefreshError{Agent: agents.Claude, Err: cause}, "claude_refresh_failed reason=401 Unauthorized"},
 		{cause, "login_read_failed file=/h/auth.json reason=401 Unauthorized"},
 	} {
 		m := loginFailed("/h/auth.json", tc.err)
@@ -348,7 +349,7 @@ func TestNamesAndLogins(t *testing.T) {
 	if got := s.Logins(t.Context(), []string{"node", "codex", "claude"}); got != nil {
 		t.Errorf("Logins without files = %q", got)
 	}
-	for _, k := range loginKinds {
+	for _, k := range agents.LoginKinds() {
 		f := LoginFile(s.Dirs, k)
 		if err := os.MkdirAll(filepath.Dir(f), 0o700); err != nil {
 			t.Fatal(err)
@@ -357,8 +358,8 @@ func TestNamesAndLogins(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Claude Code's OAuth login file holds no login.
-	if got := s.Logins(t.Context(), []string{"node", "codex", "claude"}); !slices.Equal(got, []string{"codex", "claude"}) {
+	// Claude Code's OAuth login file holds no login. The kinds come in the agents' order.
+	if got := s.Logins(t.Context(), []string{"node", "codex", "claude"}); !slices.Equal(got, []string{"claude", "codex"}) {
 		t.Errorf("Logins = %q", got)
 	}
 	if got := s.Logins(t.Context(), []string{"node"}); got != nil {
@@ -561,8 +562,8 @@ func TestVMCopies(t *testing.T) {
 		}
 	}
 	if want := []string{
-		"codex_login_kept keys=b, extra", "opencode_login_kept providers=llama", "opencode_login_withheld providers=other",
-		"pi_login_withheld providers=groq, openai-codex",
+		"login_kept agent=Codex file=auth.json keys=b, extra", "login_kept agent=opencode file=auth.json keys=llama",
+		"login_oauth_withheld agent=opencode name=opencode providers=other", "login_withheld agent=pi name=pi providers=groq, openai-codex",
 	}; !slices.Equal(warned, want) {
 		t.Errorf("warned %q, want %q", warned, want)
 	}
@@ -585,7 +586,7 @@ func TestVMCopies(t *testing.T) {
 		t.Errorf("pi's VM copy: %s, %v", data, err)
 	case !strings.Contains(string(data), `"key": "g"`):
 		t.Errorf("pi's VM copy lacks the passed key: %s", data)
-	case !slices.Equal(noted, []string{"pi_login_kept providers=groq"}) || !slices.Equal(warned, []string{"pi_login_withheld providers=openai-codex"}):
+	case !slices.Equal(noted, []string{"login_passed agent=pi providers=groq"}) || !slices.Equal(warned, []string{"login_withheld agent=pi name=pi providers=openai-codex"}):
 		t.Errorf("noted %q, warned %q", noted, warned)
 	}
 	// A config.toml devvm can't read fails the copy.

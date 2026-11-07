@@ -1,8 +1,8 @@
 ---
 title: Coding agents
-explainer: Run Claude Code, Codex and opencode in a VM
+explainer: Run Claude Code and the other coding agents in a VM
 weight: 1
-description: "devvm runs Claude Code, Codex, opencode and pi in VMs, with each agent's settings and logins from devvm's own store on this machine but never your history. This page covers which agents devvm supports, devvm's agent store and what each VM gets from it, the agents' logins and their history."
+description: "devvm runs coding agents such as Claude Code in VMs, with each agent's settings and logins from devvm's own store on this machine but never your history. This page covers which agents devvm supports, devvm's agent store and what each VM gets from it, the agents' logins and their history."
 ---
 
 ## Running an agent
@@ -25,13 +25,13 @@ Every VM has a guide to devvm for the agents in it, at `/usr/share/doc/devvm/REA
 A new VM gets an agent when you choose it as you customize the VM, or when you name it with `--agents`. A VM that exists gets one from `devvm tools`, which shows the same list with the VM's agents already chosen, or from `devvm tools add`:
 
 ```sh
-devvm                          # a new VM: customize it, then choose claude, codex, opencode or pi
+devvm                          # a new VM: customize it, then choose its agents in the list
 devvm --agents claude,codex    # a new VM with Claude Code and Codex, without the list
 devvm tools                    # the VM that exists: choose its agents in the list
 devvm tools add opencode       # the VM that exists: add opencode without the list
 ```
 
-In the VM, you run the agent as `claude`, `codex`, `opencode` or `pi`.
+In the VM, you run each agent by its name in the table, such as `claude`.
 
 | Name | Agent | What devvm adds | Allowlist, on the allowlist and none tiers |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ In the VM, you run the agent as `claude`, `codex`, `opencode` or `pi`.
 | `opencode` | opencode | the newest 2.x release, because opencode marks its 1.x releases as its latest on GitHub | opencode's own service and its model catalog: `opencode.ai` and `models.opencode.ai` |
 | `pi` | [pi](https://pi.dev) | the newest release, with its check for a newer pi and its install report off, and `fd`, which pi finds files with, in base | pi's model catalog: `pi.dev` |
 
-Claude Code's telemetry hosts aren't on its allowlist, because blocking them costs nothing. opencode and pi talk to the model provider you choose, so on the allowlist tier you allow that provider's API host yourself, such as `devvm network allow api.anthropic.com` ([changing rules](../safety/network.md#changing-rules)), unless devvm keeps the agent's login or API key for that provider, because the VM's proxy then allows its host. Every VM sets `OPENCODE_DISABLE_AUTOUPDATE=1`, as it sets `DISABLE_AUTOUPDATER=1` for Claude Code, because the agents are read-only shared tools that can't update themselves, and devvm keeps their versions. For the same reason every VM sets `PI_SKIP_VERSION_CHECK=1`, so pi doesn't ask you to run `pi update`, and `PI_TELEMETRY=0`, which turns off pi's report of its install and the attribution headers it adds to some providers' requests. pi would download `fd` and `rg` into `~/.pi/agent/bin` whenever they're missing, so base has both, from Ubuntu's or the container image's own packages, and pi finds Ubuntu's and Debian's `fd` by its name there, `fdfind`.
+Claude Code's telemetry hosts aren't on its allowlist, because blocking them costs nothing. opencode and pi talk to the model provider you choose, so on the allowlist tier you allow that provider's API host yourself, such as `devvm network allow api.anthropic.com` ([changing rules](../safety/network.md#changing-rules)), unless devvm keeps the agent's login or API key for that provider, because the VM's proxy then allows its host. Every VM sets `OPENCODE_DISABLE_AUTOUPDATE=1`, as it sets `DISABLE_AUTOUPDATER=1` for Claude Code, because the agents are read-only shared tools that can't update themselves, and devvm keeps their versions. For the same reason every VM sets `PI_SKIP_VERSION_CHECK=1`, so pi doesn't ask you to run `pi update`, and `PI_TELEMETRY=0`, which turns off pi's report of its install and the attribution headers it adds to some providers' requests. Claude Code's telemetry and error reports are off with `DISABLE_TELEMETRY=1` and `DISABLE_ERROR_REPORTING=1`. devvm writes every agent's variables into each VM at every launch, whichever agents the VM has, and every shell in the VM gets them, login or not, so an agent that an editor's terminal or `ssh` runs gets them too. pi would download `fd` and `rg` into `~/.pi/agent/bin` whenever they're missing, so base has both, from Ubuntu's or the container image's own packages, and pi finds Ubuntu's and Debian's `fd` by its name there, `fdfind`.
 
 pi's releases are built for glibc alone, so a VM made `--from` an Alpine-based container image can't have pi, and devvm refuses it there ([shared tools and glibc](from.md#shared-tools-and-glibc)). Every other agent runs on Alpine too.
 
@@ -263,6 +263,7 @@ Besides the agents' config, every launch sets the VM up from this machine's sett
 - the timezone (`TZ`, else this machine's) and, when it's UTF-8, the locale (`LC_ALL`, else `LANG`);
 - git's `user.name` and `user.email`, as git has them in the project folder;
 - telemetry off where an environment variable can't turn it off, which is Go's, and Codex's analytics and metrics;
+- every agent's environment variables, which turn off its self-update and its telemetry ([supported agents](#supported-agents));
 - `(devvm)` at the start of the prompt.
 
 On every network tier, the launch also installs the VM's own CA and the next one, points apt, sudo, ssh, the [docker layer](images.md#docker)'s Docker and the [nix layer](images.md#nix)'s Nix at the proxy, and adds `devvm-why`, which shows what the proxy blocked lately. It also tells the agents, in `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, why a request may fail ([inside the VM](../safety/network.md#inside-the-vm)). The VM's secrets go in `~/.config/devvm/env` in the VM, which login shells read, and that file holds their placeholders.

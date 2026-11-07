@@ -43,6 +43,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/fetch"
 	"github.com/devvmhq/devvm/internal/proxy"
 	"github.com/devvmhq/devvm/internal/state"
@@ -63,14 +64,6 @@ const (
 	farFuture = 4070908800
 )
 
-// The agents whose files a File is.
-const (
-	Codex    = "codex"
-	Opencode = "opencode"
-	Claude   = "claude"
-	Pi       = "pi"
-)
-
 // The errors of Get that logging in again with the agent on the host fixes.
 var (
 	// ErrCodexNoKey: Codex's login on the host has no API key.
@@ -79,8 +72,8 @@ var (
 	ErrCodexNoChatGPT = errors.New("codex isn't logged in with ChatGPT")
 )
 
-// RefreshError is Get's error for an OAuth login whose refresh on the host failed: Agent's (Codex,
-// Opencode or Claude), and for opencode its Provider's. Logging in again with the agent fixes it.
+// RefreshError is Get's error for an OAuth login whose refresh on the host failed: Agent's (an
+// agents.Def's Name), and for opencode its Provider's. Logging in again with the agent fixes it.
 type RefreshError struct {
 	Agent, Provider string
 	Err             error
@@ -91,7 +84,7 @@ func (e *RefreshError) Unwrap() error { return e.Err }
 
 // File is one agent's file on the host.
 type File struct {
-	Kind string // Codex, Opencode, Pi, Claude (its .claude.json) or ClaudeOAuth (its .credentials.json)
+	Kind string // an agents.Login's Kind, whose format it has (formats)
 	Path string
 	// Salt is the VM's key, which ends every placeholder, so each VM's are its own: a proxy puts a
 	// value in only for the placeholders bound for its VM. Empty: none.
@@ -249,6 +242,9 @@ func openaiPlaceholder(tok, salt string) string { return fakeJWT(accountClaims(t
 
 // --- Codex ---
 
+// codexLogin is the name of Codex's ChatGPT login's binding: its agent's.
+const codexLogin = agents.Codex
+
 // codexKeyPlaceholder is the VM's in place of Codex's API key.
 func codexKeyPlaceholder(salt string) string { return salted("sk-devvm-proxy-managed-codex", salt) }
 
@@ -260,10 +256,10 @@ func login(agent, name string, hosts []string, header, placeholder string) proxy
 func codexBindings(m map[string]any, salt string) []proxy.Binding {
 	var bs []proxy.Binding
 	if str(m, "OPENAI_API_KEY") != "" {
-		bs = append(bs, login(Codex, "codex-key", []string{"api.openai.com"}, "Authorization", codexKeyPlaceholder(salt)))
+		bs = append(bs, login(agents.Codex, "codex-key", []string{"api.openai.com"}, "Authorization", codexKeyPlaceholder(salt)))
 	}
 	if t := obj(m, "tokens"); str(t, "access_token") != "" {
-		bs = append(bs, login(Codex, "codex", []string{"chatgpt.com", "api.openai.com"}, "Authorization",
+		bs = append(bs, login(agents.Codex, codexLogin, []string{"chatgpt.com", "api.openai.com"}, "Authorization",
 			openaiPlaceholder(str(t, "access_token"), salt)))
 	}
 	return bs
@@ -298,7 +294,7 @@ func codexVM(m map[string]any, salt string) map[string]any {
 		switch b.Name {
 		case "codex-key":
 			m["OPENAI_API_KEY"] = b.Placeholder
-		case "codex":
+		case codexLogin:
 			t["id_token"] = id
 			t["access_token"] = b.Placeholder
 			// Just refreshed, as far as the VM's Codex can tell: it never tries.
@@ -324,7 +320,7 @@ func (f File) codexGet(ctx context.Context, name string) (string, error) {
 			return k, nil
 		}
 		return "", ErrCodexNoKey
-	case "codex":
+	case codexLogin:
 		t := obj(m, "tokens")
 		if str(t, "access_token") == "" {
 			return "", ErrCodexNoChatGPT
@@ -336,7 +332,7 @@ func (f File) codexGet(ctx context.Context, name string) (string, error) {
 			"grant_type": "refresh_token", "client_id": openaiClientID, "refresh_token": str(t, "refresh_token"),
 		})
 		if err != nil {
-			return "", &RefreshError{Agent: Codex, Err: err}
+			return "", &RefreshError{Agent: agents.Codex, Err: err}
 		}
 		for _, k := range []string{"id_token", "access_token", "refresh_token"} {
 			if v := str(nt, k); v != "" {
@@ -377,7 +373,7 @@ func opencodeBindings(m map[string]any, salt string) []proxy.Binding {
 		if id == "openai" && str(e, "type") == "oauth" {
 			ph = openaiPlaceholder(str(e, "access"), salt) // opencode reads the account from it
 		}
-		bs = append(bs, login(Opencode, "opencode-"+id, p.hosts, p.header, ph))
+		bs = append(bs, login(agents.Opencode, "opencode-"+id, p.hosts, p.header, ph))
 	}
 	return bs
 }
@@ -452,7 +448,7 @@ func (f File) opencodeGet(ctx context.Context, name string) (string, error) {
 			"grant_type": "refresh_token", "client_id": openaiClientID, "refresh_token": str(e, "refresh"),
 		})
 		if err != nil {
-			return "", &RefreshError{Agent: Opencode, Provider: id, Err: err}
+			return "", &RefreshError{Agent: agents.Opencode, Provider: id, Err: err}
 		}
 		e["access"] = str(nt, "access_token")
 		if v := str(nt, "refresh_token"); v != "" {
@@ -473,7 +469,7 @@ func (f File) tokenURL() string {
 	switch {
 	case f.TokenURL != "":
 		return f.TokenURL
-	case f.Kind == ClaudeOAuth:
+	case f.Kind == agents.ClaudeOAuth:
 		return ClaudeTokenURL
 	}
 	return OpenAITokenURL
@@ -590,7 +586,7 @@ func claudeBindings(m map[string]any, salt string) []proxy.Binding {
 		}
 		for _, h := range sortedKeys(obj(s, "headers")) {
 			name := claudeBindingName(n, h)
-			bs = append(bs, login(Claude, name, []string{host}, h, salted("devvm-proxy-managed-"+name, salt)))
+			bs = append(bs, login(agents.Claude, name, []string{host}, h, salted("devvm-proxy-managed-"+name, salt)))
 		}
 	}
 	return bs
@@ -829,9 +825,6 @@ func (f File) claudeGet(name string) (string, error) {
 	return "", fmt.Errorf("no MCP server header %s in %s", name, f.Path)
 }
 
-// errKind is a File of no agent devvm knows.
-func (f File) errKind() error { return fmt.Errorf("unknown login kind %q", f.Kind) }
-
 // Bindings returns the login's secret bindings, of proxy.KindLogin with f.Kind their Agent, each
 // placeholder ending in f.Salt; none for a file that holds no login devvm knows.
 func (f File) Bindings() ([]proxy.Binding, error) {
@@ -839,19 +832,11 @@ func (f File) Bindings() ([]proxy.Binding, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch f.Kind {
-	case Codex:
-		return codexBindings(m, f.Salt), nil
-	case Opencode:
-		return opencodeBindings(m, f.Salt), nil
-	case Pi:
-		return piBindings(m, f.Salt), nil
-	case Claude:
-		return claudeBindings(m, f.Salt), nil
-	case ClaudeOAuth:
-		return claudeOAuthBindings(m, f.Salt), nil
+	fm, err := f.formatOf()
+	if err != nil {
+		return nil, err
 	}
-	return nil, f.errKind()
+	return fm.bindings(m, f.Salt), nil
 }
 
 // VMFile is the VM's copy of an agent's file (File.VMCopy).
@@ -872,24 +857,11 @@ func (f File) VMCopy() (VMFile, error) {
 	if err != nil {
 		return VMFile{}, err
 	}
-	var c VMFile
-	switch f.Kind {
-	case Codex:
-		c.Kept = codexOthers(m)
-		m = codexVM(m, f.Salt)
-	case Opencode:
-		c.Kept, c.Withheld = opencodeUnbound(m, false), opencodeUnbound(m, true)
-		m = opencodeVM(m, f.Salt)
-	case Pi:
-		c.Kept, c.Withheld = piPasses(m, f.Pass), piWithheld(m, f.Pass)
-		m = piVM(m, f.Salt, f.Pass)
-	case Claude:
-		m = claudeVM(m, f.Salt)
-	case ClaudeOAuth:
-		m = claudeOAuthVM(m, f.Salt)
-	default:
-		return VMFile{}, f.errKind()
+	fm, err := f.formatOf()
+	if err != nil {
+		return VMFile{}, err
 	}
+	m, c := fm.vmCopy(m, f)
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return VMFile{}, err
@@ -902,17 +874,9 @@ func (f File) VMCopy() (VMFile, error) {
 // Get returns the value of the binding named name: from the host's file, read each time, refreshing
 // an OAuth token there when it's due, under the file's lock.
 func (f File) Get(ctx context.Context, name string) (string, error) {
-	switch f.Kind {
-	case Codex:
-		return f.codexGet(ctx, name)
-	case Opencode:
-		return f.opencodeGet(ctx, name)
-	case Pi:
-		return f.piGet(name)
-	case Claude:
-		return f.claudeGet(name)
-	case ClaudeOAuth:
-		return f.claudeOAuthGet(ctx, name)
+	fm, err := f.formatOf()
+	if err != nil {
+		return "", err
 	}
-	return "", f.errKind()
+	return fm.get(ctx, f, name)
 }
