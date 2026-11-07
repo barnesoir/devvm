@@ -229,15 +229,15 @@ func TestOpencodeCleanNoCmd(t *testing.T) {
 // but skips the DELETEs its stdin holds, so the logins stay.
 func TestOpencodeCleanFailsClosed(t *testing.T) {
 	needSqlite(t)
-	real, err := exec.LookPath("sqlite3")
+	sqlite3, err := exec.LookPath("sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
 	stubs := map[string]string{
 		"runs nothing": "#!/bin/sh\nexit 0\n",
 		// With only -bail and the database, the SQL is on stdin.
-		"skips deletes": "#!/bin/sh\nif [ $# -eq 2 ]; then grep -v '^DELETE' | " + shell.Quote(real) + ` "$@"; else exec ` +
-			shell.Quote(real) + " \"$@\"; fi\n",
+		"skips deletes": "#!/bin/sh\nif [ $# -eq 2 ]; then grep -v '^DELETE' | " + shell.Quote(sqlite3) + ` "$@"; else exec ` +
+			shell.Quote(sqlite3) + " \"$@\"; fi\n",
 	}
 	for name, stub := range stubs {
 		t.Run(name, func(t *testing.T) {
