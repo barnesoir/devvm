@@ -136,3 +136,14 @@ func TestLoginArgv(t *testing.T) {
 		}
 	}
 }
+
+// pi has no login of its own here: without an API key, Run refuses
+// before it finds or starts a VM.
+func TestAgentLoginPiKeyOnly(t *testing.T) {
+	if err := (AgentLogin{}).Run(t.Context(), AgentLoginOptions{Agent: "pi", Device: true}); msg.NamesOf(err) != "agent_login_pi_key_only" {
+		t.Errorf("Run(pi) = %v", msg.NamesOf(err))
+	}
+	if !slices.Contains(LoginAgents(), "pi") {
+		t.Error("LoginAgents lacks pi")
+	}
+}

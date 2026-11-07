@@ -66,6 +66,9 @@ type ToolDef struct {
 	Detect []string
 	// Installer is what installs it.
 	Installer Installer
+	// GlibcOnly: its project releases builds for glibc alone, none for
+	// musl, so a VM whose base has musl (Alpine) can't run it.
+	GlibcOnly bool
 }
 
 // SharedTools are the shared tools, in the fixed order a VM's list holds
@@ -81,6 +84,7 @@ var SharedTools = []ToolDef{
 	{Name: "claude", Kind: Agent, Members: []string{"claude"}},
 	{Name: "codex", Kind: Agent, Members: []string{"codex"}},
 	{Name: "opencode", Kind: Agent, Members: []string{"opencode"}},
+	{Name: "pi", Kind: Agent, Members: []string{"pi"}, GlibcOnly: true},
 }
 
 // Toolchains are the shared toolchains' names, in SharedTools' order.
@@ -166,6 +170,18 @@ func NoDownload(tool string) bool { return installerOf(tool) == Rustup }
 // download from the lock itself, rather than mise or rustup: dotnet,
 // whose download and checksum devvm adds to the lock.
 func OwnDownload(tool string) bool { return installerOf(tool) == DotnetSDK }
+
+// GlibcOnly reports whether a tool in the lock has builds for glibc
+// alone (its shared tool's GlibcOnly): pi, whose releases have none for
+// musl.
+func GlibcOnly(tool string) bool {
+	for _, d := range SharedTools {
+		if slices.Contains(d.Members, tool) {
+			return d.GlibcOnly
+		}
+	}
+	return false
+}
 
 // installerOf is what installs a tool in the lock: its shared tool's
 // Installer, mise for a tool no shared tool has.

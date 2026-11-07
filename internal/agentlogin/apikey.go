@@ -12,10 +12,11 @@ import (
 
 // KeyProviders are the providers whose API keys devvm agent login saves
 // for kind, sorted: Codex's one, OpenAI's, which needs no name, and the
-// opencode providers whose keys the proxy puts in (opencodeAPI). Any
-// other's key would reach the VM as it is, so it's never saved this way.
+// opencode and pi providers whose keys the proxy puts in (opencodeAPI).
+// Any other's key would reach the VM as it is, so it's never saved this
+// way.
 func KeyProviders(kind string) []string {
-	if kind == Opencode {
+	if kind == Opencode || kind == Pi {
 		return slices.Sorted(maps.Keys(opencodeAPI))
 	}
 	return nil
@@ -69,15 +70,15 @@ func OpencodeImport(vmCopy []byte) ([]byte, error) {
 // SetKey saves key as the agent's API key in f, the store's login file,
 // under its lock, in the agent's own format: Codex's auth.json becomes an
 // API-key login, as codex login --with-api-key makes it, its ChatGPT login
-// gone, and opencode's gets provider's entry, of KeyProviders, its other
-// providers kept.
+// gone, and opencode's and pi's get provider's entry, of KeyProviders,
+// their other providers kept (a pi entry's env too).
 func (f File) SetKey(provider, key string) error {
 	if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n") {
 		return errors.New("the API key is empty or more than one line")
 	}
 	switch {
 	case f.Kind == Codex && provider == "":
-	case f.Kind == Opencode && slices.Contains(KeyProviders(Opencode), provider):
+	case (f.Kind == Opencode || f.Kind == Pi) && slices.Contains(KeyProviders(f.Kind), provider):
 	default:
 		return errKeyProvider
 	}
@@ -90,9 +91,16 @@ func (f File) SetKey(provider, key string) error {
 	if err != nil {
 		return err
 	}
-	if f.Kind == Codex {
+	switch f.Kind {
+	case Codex:
 		m = map[string]any{"auth_mode": "apikey", "OPENAI_API_KEY": key}
-	} else {
+	case Pi:
+		e := map[string]any{"type": "api_key", "key": key}
+		if env := obj(obj(m, provider), "env"); len(env) > 0 {
+			e["env"] = env
+		}
+		m[provider] = e
+	default:
 		m[provider] = map[string]any{"type": "api", "key": key}
 	}
 	return writeRefreshed(f.Path, m)

@@ -63,7 +63,7 @@ Claude Code needs your Claude login before its first start, which `devvm agent l
 
 {{< feature title="Coding agents" icon="robot" level="3" art="coding-agents" >}}
 
-Claude Code, Codex and opencode run in the VM. Choose one when you customize a new VM, or choose them for every new VM in `devvm setup` ([coding agents](docs/using/coding-agents.md)).
+Claude Code, Codex, opencode and pi run in the VM. Choose one when you customize a new VM, or choose them for every new VM in `devvm setup` ([coding agents](docs/using/coding-agents.md)).
 
 {{< /feature >}}
 

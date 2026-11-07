@@ -58,7 +58,7 @@ func TestCompleteToolNames(t *testing.T) {
 	}{
 		{nil, "c", []string{"claude", "codex"}},
 		{[]string{"claude"}, "c", []string{"codex"}},
-		{[]string{"node"}, "", []string{"python", "rust", "go", "dotnet", "claude", "codex", "opencode"}},
+		{[]string{"node"}, "", []string{"python", "rust", "go", "dotnet", "claude", "codex", "opencode", "pi"}},
 		{nil, "node+", nil},
 	} {
 		if got, _ := completeToolNames(nil, tc.args, tc.in); !slices.Equal(got, tc.want) {

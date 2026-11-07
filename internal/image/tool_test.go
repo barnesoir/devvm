@@ -279,13 +279,22 @@ func TestSortToolsAndGroups(t *testing.T) {
 }
 
 // The table's views: the toolchains, then the agents; rust alone needs
-// no download in the lock, and dotnet alone has build.sh fetch its own.
+// no download in the lock, dotnet alone has build.sh fetch its own, and
+// pi alone has builds for glibc alone.
 func TestSharedTools(t *testing.T) {
 	if want := []string{"node", "python", "rust", "go", "dotnet"}; !slices.Equal(Toolchains, want) {
 		t.Errorf("Toolchains = %q, want %q", Toolchains, want)
 	}
-	if want := []string{"claude", "codex", "opencode"}; !slices.Equal(Agents, want) {
+	if want := []string{"claude", "codex", "opencode", "pi"}; !slices.Equal(Agents, want) {
 		t.Errorf("Agents = %q, want %q", Agents, want)
+	}
+	for _, d := range SharedTools {
+		if d.GlibcOnly != (d.Name == "pi") || GlibcOnly(d.Name) != d.GlibcOnly {
+			t.Errorf("%s: GlibcOnly %v", d.Name, d.GlibcOnly)
+		}
+	}
+	if GlibcOnly("nix") || GlibcOnly("bun") {
+		t.Error("GlibcOnly of a layer or another member")
 	}
 	for tool, want := range map[string]bool{"rust": true, "dotnet": false, "node": false, "pnpm": false, "claude": false, "nix": false} {
 		if got := NoDownload(tool); got != want {

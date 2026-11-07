@@ -371,10 +371,11 @@ func TestHistoryExportRuns(t *testing.T) {
 				needSqlite(t)
 			}
 			home := t.TempDir()
-			mkdirs(t, home, ".claude/projects", opencodeData+"/storage", ".local/state/opencode", ".cache")
+			mkdirs(t, home, ".claude/projects", opencodeData+"/storage", ".local/state/opencode", ".cache", piSessions+"/--p--")
 			for _, f := range []string{
 				".claude/projects/p.jsonl", ".claude/.credentials.json", opencodeData + "/auth.json",
 				opencodeData + "/mcp-auth.json", opencodeData + "/storage/s.json", ".local/state/opencode/kv.json",
+				piSessions + "/--p--/s.jsonl", piDir + "/auth.json", piDir + "/settings.json",
 			} {
 				if err := state.WriteFile(filepath.Join(home, f), []byte(f)); err != nil {
 					t.Fatal(err)
@@ -399,6 +400,7 @@ func TestHistoryExportRuns(t *testing.T) {
 				".claude/projects/p.jsonl": true, opencodeData + "/storage/s.json": true, ".local/state/opencode/kv.json": true,
 				".claude/.credentials.json": false, opencodeData + "/auth.json": false, opencodeData + "/mcp-auth.json": false,
 				opencodeData + "/opencode.db": with, opencodeData + "/opencode.db-wal": false, opencodeData + "/opencode.db-shm": false,
+				piSessions + "/--p--/s.jsonl": true, piDir + "/auth.json": false, piDir + "/settings.json": false,
 			} {
 				if _, ok := got[f]; ok != want {
 					t.Errorf("%s: in the export %v, want %v", f, ok, want)

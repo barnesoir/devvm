@@ -71,6 +71,7 @@ func networkSection(s *S) {
 	netOpencodeLogin(n)
 	netOpencodeHistory(n)
 	netOpencodeKeys(n)
+	netPi(n)
 	netClaudeLogins(n)
 	netSave(n)
 	netGithub(n)
@@ -140,7 +141,7 @@ func netLaunch(n *netRun) {
 	})
 	n.n, _ = s.NewProject("net")
 	w, werr := WatchProcs(s)
-	n.vm, _, _ = launchWith(s, n.n, n.home(fakeToken), "--network", "allowlist", "--no-git-protect", "--agents", "claude,codex,opencode")
+	n.vm, _, _ = launchWith(s, n.n, n.home(fakeToken), "--network", "allowlist", "--no-git-protect", "--agents", "claude,codex,opencode,pi")
 	if werr == nil {
 		w.Stop()
 	}
@@ -275,6 +276,13 @@ func netBlocks(n *netRun) {
 			if err := inVM(s, vm, "curl -fsS -m 20 -o /dev/null "+u); err != nil {
 				return errors.New(u + " wasn't reached through the proxy")
 			}
+		}
+		return nil
+	})
+	// pi reads its model catalog from pi.dev, its policy's one host.
+	s.Check("pi's policy allows its model catalog", func() error {
+		if err := inVM(s, vm, "curl -fsS -m 20 -o /dev/null https://pi.dev/api/models/providers/anthropic"); err != nil {
+			return errors.New("pi.dev's catalog wasn't reached through the proxy")
 		}
 		return nil
 	})
@@ -996,6 +1004,58 @@ func netOpencodeKeys(n *netRun) {
 	if vm != "" {
 		_, _ = s.Run(devvmCmd(s, oc, "", n.home(), "rm", "--force", "--no-export"))
 	}
+}
+
+// piKey is the fake Anthropic API key devvm agent login pi saves.
+const piKey = "sk-ant-e2efake-pi"
+
+// pi in the network VM: it runs from its read-only shared image with its
+// version check and install report off, and the fd it would download is
+// base's. devvm agent login pi --api-key saves a fake Anthropic key in
+// the store; the VM's pi gets only its placeholder, and pi's own request
+// to Anthropic's API, which the run's fake answers, carries the key the
+// VM's proxy put in, logged nowhere.
+func netPi(n *netRun) {
+	s, vm := n.s, n.vm
+	s.Check("pi runs in the VM from its read-only shared image, its version check and install report off", func() error {
+		switch {
+		case inVM(s, vm, "pi --version </dev/null") != nil:
+			return errors.New("pi --version failed")
+		case vmOut(s, vm, "printenv PI_SKIP_VERSION_CHECK") != "1" || vmOut(s, vm, "printenv PI_TELEMETRY") != "0":
+			return errors.New("PI_SKIP_VERSION_CHECK isn't 1, or PI_TELEMETRY isn't 0")
+		case inVM(s, vm, "command -v fdfind || command -v fd") != nil:
+			return errors.New("base has no fd for pi")
+		case inVM(s, vm, `d=$(dirname "$(mise which pi)") && [ -d "$d" ] && ! touch "$d/devvm-e2e" 2>/dev/null`) != nil:
+			return errors.New("pi's install can be written to")
+		}
+		return nil
+	})
+	s.Check("devvm agent login pi --api-key: the store keeps the key, the VM's pi its placeholder, and the proxy puts the key in pi's request", func() error {
+		r, err := n.dv(piKey+"\n", n.tokenEnv("DEVVM_MESSAGES=names"), "agent", "login", "pi", "--api-key", "--provider", "anthropic", "--stdin")
+		if err != nil || !Matches(r.Out, `^==> agent_key_saved agent=pi provider=anthropic vm=`) {
+			return failed("devvm agent login pi --api-key didn't save the key:\n"+r.Out, err)
+		}
+		store := filepath.Join(n.logins, "pi", ".pi", "agent", "auth.json")
+		ph := "devvm-proxy-managed-pi-anthropic-" + n.salt
+		switch {
+		case jsonFileAt(store, "anthropic.key") != piKey || modeOf(store) != "600":
+			return errors.New("the store's pi login isn't the key, only yours to read")
+		case vmOut(s, vm, "jq -r .anthropic.key ~/.pi/agent/auth.json") != ph:
+			return errors.New("the VM's pi login doesn't hold the key's placeholder")
+		}
+		if has, err := vmHas(s, vm, false, "cat ~/.pi/agent/auth.json", "e2efake"); err != nil || has {
+			return failed("the VM's pi login holds the key", err)
+		}
+		// The fake answers with a 404, so pi fails, after its request.
+		_, _ = s.InVM(vm, `timeout 120 pi --no-session --no-tools -p --provider anthropic --model haiku "e2e" </dev/null`)
+		switch {
+		case !lineWith(readText(n.tokLog), "api /v1/messages", "x-api-key "+piKey):
+			return errors.New("pi's request didn't reach Anthropic's API with the key the proxy put in\n" + n.tokenWhy())
+		case !lineWith(readText(n.events), `"host":"api.anthropic.com"`, `"secrets":["pi-anthropic"]`):
+			return errors.New("no event shows pi's key put in")
+		}
+		return NoLeak([]string{piKey}, filepath.Join(n.vmd, "logs"), filepath.Join(s.Paths.Devvm, "logs"))
+	}, Tail(40))
 }
 
 // opencodeWhy is what the VM's opencode got: the IDs of opencode.sh's
@@ -2132,11 +2192,13 @@ def claude(q):
                     expires_in=28800, scope="user:inference user:profile", token_type="Bearer")
     return None
 # Anthropic's API: the profile Claude Code reads as it logs in, and the Authorization of each request
-# logged, so a check sees which token the VM's proxy put in.
+# logged, and its x-api-key when it has one (an API key's), so a check sees which token the VM's
+# proxy put in.
 def api(path, h):
     a = [x.split(":", 1)[1].strip() for x in h[1:] if x.lower().startswith("authorization:")]
+    k = [x.split(":", 1)[1].strip() for x in h[1:] if x.lower().startswith("x-api-key:")]
     with open(log, "a") as o:
-        o.write("api " + path + " " + (a[0] if a else "-") + "\n")
+        o.write("api " + path + " " + (a[0] if a else "-") + (" x-api-key " + k[0] if k else "") + "\n")
     if path.startswith("/api/oauth/profile"):
         return 200, {"account": {"uuid": "acct-e2e", "email": "e2e@devvm.test", "display_name": "e2e"},
                      "organization": {"uuid": "org-e2e", "organization_type": "claude_max", "rate_limit_tier": "default_claude_max_20x"}}

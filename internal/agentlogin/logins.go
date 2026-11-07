@@ -1,5 +1,6 @@
 // Package agentlogin is agents' files on the host as VMs see them. Codex
-// (~/.codex/auth.json) and opencode (~/.local/share/opencode/auth.json) keep their logins there, and
+// (~/.codex/auth.json), opencode (~/.local/share/opencode/auth.json) and pi (~/.pi/agent/auth.json,
+// pi.go) keep their logins there, and
 // Claude Code its MCP servers' secrets (~/.claude.json) and its OAuth login
 // (~/.claude/.credentials.json, claude.go). Every VM gets its own copy of each file
 // with placeholders instead of keys and tokens (File.VMCopy), and the proxy puts the real ones
@@ -67,6 +68,7 @@ const (
 	Codex    = "codex"
 	Opencode = "opencode"
 	Claude   = "claude"
+	Pi       = "pi"
 )
 
 // The errors of Get that logging in again with the agent on the host fixes.
@@ -89,7 +91,7 @@ func (e *RefreshError) Unwrap() error { return e.Err }
 
 // File is one agent's file on the host.
 type File struct {
-	Kind string // Codex, Opencode, Claude (its .claude.json) or ClaudeOAuth (its .credentials.json)
+	Kind string // Codex, Opencode, Pi, Claude (its .claude.json) or ClaudeOAuth (its .credentials.json)
 	Path string
 	// Salt is the VM's key, which ends every placeholder, so each VM's are its own: a proxy puts a
 	// value in only for the placeholders bound for its VM. Empty: none.
@@ -108,7 +110,8 @@ func salted(ph, salt string) string {
 }
 
 // opencode providers devvm knows: where an API key or access token goes. Logins for other providers
-// stay in the VM's copy as they are (a local model server's key, say).
+// stay in the VM's copy as they are (a local model server's key, say). pi's API keys are bound for
+// opencodeAPI's providers too (pi.go).
 type provider struct {
 	hosts  []string
 	header string
@@ -837,6 +840,8 @@ func (f File) Bindings() ([]proxy.Binding, error) {
 		return codexBindings(m, f.Salt), nil
 	case Opencode:
 		return opencodeBindings(m, f.Salt), nil
+	case Pi:
+		return piBindings(m, f.Salt), nil
 	case Claude:
 		return claudeBindings(m, f.Salt), nil
 	case ClaudeOAuth:
@@ -848,11 +853,11 @@ func (f File) Bindings() ([]proxy.Binding, error) {
 // VMFile is the VM's copy of an agent's file (File.VMCopy).
 type VMFile struct {
 	Data []byte
-	// Kept: what of the file the copy holds as it is, sorted: Codex's auth.json keys or opencode's
-	// providers devvm doesn't know.
+	// Kept: what of the file the copy holds as it is, sorted: Codex's auth.json keys, or opencode's
+	// or pi's providers devvm doesn't know.
 	Kept []string
-	// Withheld: opencode's OAuth logins devvm doesn't bind, sorted, which the copy holds without
-	// their tokens.
+	// Withheld: opencode's or pi's OAuth logins devvm doesn't bind, sorted, which the copy holds
+	// without their tokens.
 	Withheld []string
 }
 
@@ -871,6 +876,9 @@ func (f File) VMCopy() (VMFile, error) {
 	case Opencode:
 		c.Kept, c.Withheld = opencodeUnbound(m, false), opencodeUnbound(m, true)
 		m = opencodeVM(m, f.Salt)
+	case Pi:
+		c.Kept, c.Withheld = piUnbound(m, false), piUnbound(m, true)
+		m = piVM(m, f.Salt)
 	case Claude:
 		m = claudeVM(m, f.Salt)
 	case ClaudeOAuth:
@@ -895,6 +903,8 @@ func (f File) Get(ctx context.Context, name string) (string, error) {
 		return f.codexGet(ctx, name)
 	case Opencode:
 		return f.opencodeGet(ctx, name)
+	case Pi:
+		return f.piGet(name)
 	case Claude:
 		return f.claudeGet(name)
 	case ClaudeOAuth:

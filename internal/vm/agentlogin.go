@@ -22,9 +22,10 @@ import (
 	"github.com/devvmhq/devvm/internal/vmssh"
 )
 
-// LoginAgents are the agents devvm agent login logs in.
+// LoginAgents are the agents devvm agent login logs in: pi with an API
+// key alone, as devvm keeps no login of pi's own.
 func LoginAgents() []string {
-	return []string{agentlogin.Claude, agentlogin.Codex, agentlogin.Opencode}
+	return []string{agentlogin.Claude, agentlogin.Codex, agentlogin.Opencode, agentlogin.Pi}
 }
 
 // The ports the agents' ChatGPT logins in a browser come back to: Codex
@@ -46,8 +47,9 @@ type AgentLoginOptions struct {
 	// subscription's login.
 	SetupToken bool
 	// Key is an API key to save in devvm's store instead, for opencode
-	// Provider's (agentlogin.KeyProviders), which the VM gets as
-	// placeholders: the agent's own login never runs.
+	// and pi Provider's (agentlogin.KeyProviders), which the VM gets as
+	// placeholders: the agent's own login never runs. pi has no other
+	// login here.
 	Key, Provider string
 }
 
@@ -66,8 +68,12 @@ type AgentLogin struct{ *Env }
 // login and its proxy the bindings at once. Claude Code's login, or its
 // claude setup-token, shows an address to open in a browser on any
 // machine, whose code you paste back, so nothing is forwarded (claude).
-// Run says what the store saved, and fails when the login saved nothing.
+// pi saves an API key alone. Run says what the store saved, and fails
+// when the login saved nothing.
 func (e AgentLogin) Run(ctx context.Context, o AgentLoginOptions) error {
+	if o.Agent == agentlogin.Pi && o.Key == "" {
+		return msg.AgentLoginPiKeyOnly()
+	}
 	t, conf, err := readyConf(ctx, e.launcher)
 	if err != nil {
 		return err

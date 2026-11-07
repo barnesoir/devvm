@@ -465,13 +465,15 @@ func (e syncer) stageSecrets(ctx context.Context, s *stage, store *secrets.Store
 
 // settingsFormat returns the format of an agent's settings file, by its
 // path relative to the home folder: Claude Code's settings.json, Codex's
-// config.toml, opencode's JSON, JSONC and TOML files.
+// config.toml, opencode's JSON, JSONC and TOML files, and pi's JSON
+// files (piSettingsFile).
 func settingsFormat(rel string) (string, bool) {
 	ext := filepath.Ext(rel)
 	switch {
 	case rel == ".claude/settings.json":
 	case rel == ".codex/config.toml":
 	case filepath.Dir(rel) == opencodeDir && (ext == ".json" || ext == ".jsonc" || ext == ".toml"):
+	case piSettingsFile(rel):
 	default:
 		return "", false
 	}

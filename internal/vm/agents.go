@@ -30,16 +30,42 @@ var (
 	agentDirsOf = map[string][]string{
 		"claude": {".claude/skills", ".claude/agents", ".claude/commands", ".claude/output-styles", ".claude/plugins"},
 		"codex":  {".codex/prompts", ".codex/skills"},
+		"pi":     {piDir + "/extensions", piDir + "/skills", piDir + "/prompts", piDir + "/themes"},
 	}
 	agentFilesOf = map[string][]string{
 		"claude": {".claude/settings.json", ".claude/CLAUDE.md"},
 		"codex":  {".codex/config.toml", ".codex/AGENTS.md"},
+		"pi": {
+			piDir + "/settings.json", piDir + "/keybindings.json", piDir + "/models.json", piDir + "/mcp.json",
+			piDir + "/AGENTS.md", piDir + "/SYSTEM.md", piDir + "/APPEND_SYSTEM.md",
+		},
 	}
 	// agentFolderOf is the folder of the home folder each agent's
 	// settings are in, which devvm agent import copies them from,
 	// following no link out of it.
-	agentFolderOf = map[string]string{"claude": ".claude", "codex": ".codex", "opencode": opencodeDir}
+	agentFolderOf = map[string]string{"claude": ".claude", "codex": ".codex", "opencode": opencodeDir, "pi": piDir}
 )
+
+// piDir is pi's agent folder, which holds its settings, its logins
+// (auth.json) and its sessions.
+const piDir = ".pi/agent"
+
+// piSessions is the folder of piDir that pi keeps its sessions in: all
+// of pi's history.
+const piSessions = piDir + "/sessions"
+
+// piSettingsFile reports whether a file of the home folder, by its path
+// relative to it, is one of pi's settings files that can hold a key, such
+// as a provider's apiKey or an MCP server's headers: settings.json,
+// models.json and mcp.json. keybindings.json holds keys of the keyboard,
+// which the VM gets as they are.
+func piSettingsFile(rel string) bool {
+	switch rel {
+	case piDir + "/settings.json", piDir + "/models.json", piDir + "/mcp.json":
+		return true
+	}
+	return false
+}
 
 // agentStore is devvm's store of an agent's settings, laid out as they
 // are in the home folder: the one place devvm reads them from for VMs,
@@ -49,7 +75,7 @@ func agentStore(d paths.Dirs, agent string) string { return d.AgentSettings(agen
 // The agents' history in a VM, relative to its home: what devvm rm
 // exports, without their logins.
 var (
-	historyPaths    = []string{".claude", ".claude.json", ".codex", ".local/share/opencode", ".local/state/opencode"}
+	historyPaths    = []string{".claude", ".claude.json", ".codex", ".local/share/opencode", ".local/state/opencode", piSessions}
 	historyExcludes = []string{
 		".claude/.credentials.json", ".codex/auth.json",
 		".local/share/opencode/auth.json", ".local/share/opencode/account.json", ".local/share/opencode/mcp-auth.json",

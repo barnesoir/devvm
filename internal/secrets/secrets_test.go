@@ -554,15 +554,23 @@ func TestVMCopies(t *testing.T) {
 	// What a copy holds as it is is warned about.
 	writeLogin(t, s, "codex", `{"OPENAI_API_KEY":"sk-codex-secret","extra":"x","b":1}`)
 	writeLogin(t, s, "opencode", `{"llama":{"type":"api","key":"local"},"other":{"type":"oauth","access":"a","refresh":"r"}}`)
-	for _, kind := range []string{"codex", "opencode"} {
+	writeLogin(t, s, "pi", `{"anthropic":{"type":"api_key","key":"sk-ant-pi-secret"},"groq":{"type":"api_key","key":"g"},"openai-codex":{"type":"oauth","access":"a","refresh":"r"}}`)
+	for _, kind := range []string{"codex", "opencode", "pi"} {
 		if _, err := s.VMLogin(kind, salt); err != nil {
 			t.Errorf("VMLogin(%s): %v", kind, err)
 		}
 	}
 	if want := []string{
 		"codex_login_kept keys=b, extra", "opencode_login_kept providers=llama", "opencode_login_withheld providers=other",
+		"pi_login_kept providers=groq", "pi_login_withheld providers=openai-codex",
 	}; !slices.Equal(warned, want) {
 		t.Errorf("warned %q, want %q", warned, want)
+	}
+	if f := LoginFile(s.Dirs, "pi"); !strings.HasSuffix(f, filepath.Join("logins", "pi", ".pi", "agent", "auth.json")) {
+		t.Errorf("pi's login file is %s", f)
+	}
+	if data, _ := s.VMLogin("pi", salt); strings.Contains(string(data), "sk-ant-pi-secret") || !strings.Contains(string(data), "devvm-proxy-managed-pi-anthropic-"+salt) {
+		t.Errorf("pi's VM copy: %s", data)
 	}
 }
 

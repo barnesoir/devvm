@@ -16,9 +16,10 @@ export DEBIAN_FRONTEND=noninteractive
 if [[ $devvm_libc == musl ]]; then
   # GNU tar: devvm's launch sends files with it (busybox's lacks options it uses). sqlite: an export
   # of agents' history copies opencode's database without its logins with it. icu-libs: the dotnet
-  # shared tool's .NET needs ICU.
+  # shared tool's .NET needs ICU. fd: the pi shared tool finds files with it, and downloads it
+  # itself, unpinned, where it's missing.
   sudo apk add --no-cache git curl wget ca-certificates build-base unzip jq ripgrep bash coreutils tar \
-    util-linux util-linux-misc losetup findmnt erofs-utils sqlite icu-libs
+    util-linux util-linux-misc losetup findmnt erofs-utils sqlite icu-libs fd
   echo "devvm: Alpine's packages aren't pinned" >&2
 else
 # The package lists are apt.sh begin's: base's packages are recorded at its first build and replayed
@@ -26,9 +27,10 @@ else
 # erofs-utils: the shared tools' builds make their images with it, in a VM cloned from base. sqlite3:
 # an export of agents' history copies opencode's database without its logins with it. ICU: the dotnet
 # shared tool's .NET needs it, and its package's name has its version (libicu76), so it's the newest
-# libicuN the package lists have (a replay's lists have only the one recorded).
+# libicuN the package lists have (a replay's lists have only the one recorded). fd-find (fdfind): the
+# pi shared tool finds files with it, and downloads fd itself, unpinned, where it's missing.
 icu=$(apt-cache pkgnames libicu | grep -E '^libicu[0-9]+$' | sort -V | tail -1 || true)
-sudo apt-get install -y git curl wget ca-certificates build-essential unzip jq ripgrep erofs-utils sqlite3 ${icu:+"$icu"}
+sudo apt-get install -y git curl wget ca-certificates build-essential unzip jq ripgrep erofs-utils sqlite3 fd-find ${icu:+"$icu"}
 fi
 
 # devvm-fetch URL SHA256 OUT: every layer downloads through this, so an image only ever contains
@@ -89,8 +91,9 @@ rm /tmp/mise
 # Every shell finds the tools: login shells through profile.d, interactive ones through mise activate
 # (it follows `cd` into projects with other versions), and the rest (`bash -c` from agents, editors
 # over SSH) through BASH_ENV and mise's shims. Read-only installs can't take global packages or update
-# themselves: npm installs globals into ~/.npm-global, Claude Code's and opencode's auto-updates are
-# off, and dotnet tool install -g installs into ~/.dotnet/tools, which is on the PATH, so the SDK
+# themselves: npm installs globals into ~/.npm-global, Claude Code's and opencode's auto-updates and
+# pi's check for a newer pi (which asks for pi update) are off, and dotnet tool install -g installs
+# into ~/.dotnet/tools, which is on the PATH, so the SDK
 # doesn't add it to a shell's profile on its first run. .NET's telemetry, its first-run banner and
 # its background check for workload updates are off.
 sudo tee /etc/profile.d/devvm-tools.sh >/dev/null <<'SH'
@@ -100,6 +103,7 @@ esac
 export NPM_CONFIG_PREFIX="$HOME/.npm-global"
 export DISABLE_AUTOUPDATER=1
 export OPENCODE_DISABLE_AUTOUPDATE=1
+export PI_SKIP_VERSION_CHECK=1
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 export DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false
@@ -148,6 +152,7 @@ sudo tee /etc/profile.d/devvm-telemetry.sh >/dev/null <<'SH'
 export DO_NOT_TRACK=1                 # generic opt-out (bun and others)
 export DISABLE_TELEMETRY=1            # Claude Code
 export DISABLE_ERROR_REPORTING=1      # Claude Code
+export PI_TELEMETRY=0                 # pi: its install report and its attribution headers
 export NEXT_TELEMETRY_DISABLED=1
 export TURBO_TELEMETRY_DISABLED=1
 export ASTRO_TELEMETRY_DISABLED=1

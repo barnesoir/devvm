@@ -1237,6 +1237,7 @@ func TestList(t *testing.T) {
 		"claude claude 2.1.295 true 1 current",
 		"codex   false 0 not installed",
 		"opencode   false 0 not installed",
+		"pi   false 0 not installed",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("List:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
