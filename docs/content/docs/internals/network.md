@@ -117,7 +117,7 @@ devvm counts a proxy as started only once the proxy says it's listening on the V
 On the allowlist tier, a VM's proxy reads these policies, in this order, as one list. [Allowlists](../safety/network.md#allowlists) describes what they allow and the rules they hold. The other tiers read fewer, as `netpolicy.Policies` lists them for each:
 
 - **internet:** one built-in policy, `network/internet.policy`, which holds `**:*`, every host and address on any port, then `secrets.policy`, then your files below, whose denies alone apply. The proxy's config lists those files in `deny_policies`, and the proxy drops their allows as it reads them, keeping their denies and a broken deny. `**` lifts no floor, so internal addresses and this machine's stay refused.
-- **none:** the built-in policies of the VM's agents (`shared-tools/claude.policy`, `codex.policy`, `opencode.policy`, `pi.policy`) and no other built-in one, then `secrets.policy`, then your files as denies alone. The VM's links come before every rule, as on every tier.
+- **none:** the built-in policies of the VM's agents, each agent's `shared-tools/<agent>.policy`, such as `shared-tools/claude.policy`, and no other built-in one, then `secrets.policy`, then your files as denies alone. The VM's links come before every rule, as on every tier.
 - **open:** no policy at all. The proxy's config has `"open": true`, which allows every host and address on every port, internal ones and this machine's included, and a config with `open` and any policy is refused. The floor doesn't apply, and a name that the host can't resolve goes to the company proxy unjudged, as it does for a build.
 
 | Policy | Read for |
