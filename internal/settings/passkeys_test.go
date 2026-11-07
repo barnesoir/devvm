@@ -31,9 +31,9 @@ func TestPassKeys(t *testing.T) {
 		}
 	}
 	for config, line := range map[string]int{
-		"[pass-keys]\npi = [\"Ollama\"]\n":          2,
-		"[pass-keys]\npi = [\"a\", \"a\"]\n":        2,
-		"[pass-keys]\npi = \"ollama\"\n":            2,
+		"[pass-keys]\npi = [\"Ollama\"]\n":            2,
+		"[pass-keys]\npi = [\"a\", \"a\"]\n":          2,
+		"[pass-keys]\npi = \"ollama\"\n":              2,
 		"# x\n[pass-keys]\nopencode = [\"ollama\"]\n": 3,
 	} {
 		write(t, d.ConfigFile(), config)

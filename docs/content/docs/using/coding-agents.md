@@ -208,7 +208,7 @@ To give the VM one provider's API key as it is, such as a local model server's t
 pi = ["ollama"]
 ```
 
-pi's own logins with an account, which `/login` and `pi auth login` make for a subscription, such as Claude's, ChatGPT's or GitHub Copilot's, aren't among the logins devvm keeps, so save the provider's API key instead. Don't log pi in with an account inside a VM either. pi's Claude and ChatGPT logins use the same token endpoints as Claude Code's, Codex's and opencode's logins, so in a VM that has the matching agent, the VM's proxy can save pi's login as that agent's own, in place of the one devvm keeps, and devvm never keeps it as pi's ([logins made in a VM](#logins-made-in-a-vm)).
+pi's own logins with an account, which `/login` and `pi auth login` make for a subscription, such as Claude's, ChatGPT's or GitHub Copilot's, aren't among the logins devvm keeps, so save the provider's API key instead. Don't log pi in with an account inside a VM either. pi's Claude and ChatGPT logins use the same token endpoints as Claude Code's, Codex's and opencode's logins, whose replies the VM's proxy captures for those agents, and devvm never keeps such a login as pi's. In a VM that also has the matching agent, Claude Code for a Claude login and Codex or opencode for a ChatGPT login, the proxy saves pi's login as that agent's own, in place of the one devvm keeps for every VM with that agent. In a VM with none of them, the proxy refuses pi's login and devvm saves nothing ([logins made in a VM](#logins-made-in-a-vm)).
 
 #### pi's settings
 

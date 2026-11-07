@@ -8,6 +8,25 @@ import (
 	"testing"
 )
 
+// piHostLogins is a pi auth.json on the host, its keys and tokens fakes (e2efake): the review's
+// shapes, a key with env, extra and nested fields beside it, a templated key, keys in env alone, a
+// command key, other providers' keys, and OAuth logins with nested and list fields.
+const piHostLogins = `{
+	"anthropic": {"type": "api_key", "key": "sk-ant-e2efake", "env": {"K": "sk-ant-e2efake-env"},
+		"token": "tk-e2efake", "nested": {"refresh": "rt-e2efake-nested"}},
+	"openrouter": {"type": "api_key", "key": "sk-or-e2efake"},
+	"openai": {"type": "api_key", "key": "$K", "env": {"K": "sk-e2efake-template", "OPENAI_API_KEY": "sk-e2efake-env"}},
+	"azure": {"type": "api_key", "key": "x", "env": {"AZURE_OPENAI_API_KEY": "az-e2efake"}},
+	"amazon-bedrock": {"type": "api_key", "env": {"AWS_SECRET_ACCESS_KEY": "aws-e2efake"}},
+	"google": {"type": "api_key", "key": "!pass show e2efake"},
+	"groq": {"type": "api_key", "key": "gsk-e2efake"},
+	"ollama": {"type": "api_key", "key": "ollama-local", "env": {"OLLAMA_HOST": "kept"}},
+	"groq-oauth": {"type": "oauth", "access": "at-e2efake-passed", "refresh": "rt-e2efake-passed"},
+	"openai-codex": {"type": "oauth", "access": "at-e2efake", "refresh": "rt-e2efake", "expires": 1, "accountId": "acct-1",
+		"idToken": "id-e2efake", "scopes": ["openid"], "extra": {"refresh": "rt-e2efake-x"},
+		"email": [{"t": "e2efake-in-a-list"}]}
+}`
+
 // pi's auth.json in the VM, whole. A bound key (Anthropic's, OpenRouter's) becomes the VM's
 // placeholder, bound for its host and header, and its entry holds nothing else: no env, which pi
 // lets win over the environment, and no other field, nested or not. A templated key ($K, filled
@@ -16,25 +35,9 @@ import (
 // an account. The provider File.Pass lists (a local model server) goes as it is. Get reads only
 // the bound keys from the host's file.
 func TestPiLogins(t *testing.T) {
-	f := File{Kind: Pi, Salt: "s1", Pass: []string{"ollama", "groq-oauth"}, Path: writeFile(t, map[string]any{ //nolint:gosec // G101: fake keys and tokens, which no service takes
-		"anthropic": map[string]any{
-			"type": "api_key", "key": "sk-ant-e2efake", "env": map[string]any{"K": "sk-ant-e2efake-env"},
-			"token": "tk-e2efake", "nested": map[string]any{"refresh": "rt-e2efake-nested"},
-		},
-		"openrouter":     map[string]any{"type": "api_key", "key": "sk-or-e2efake"},
-		"openai":         map[string]any{"type": "api_key", "key": "$K", "env": map[string]any{"K": "sk-e2efake-template", "OPENAI_API_KEY": "sk-e2efake-env"}},
-		"azure":          map[string]any{"type": "api_key", "key": "x", "env": map[string]any{"AZURE_OPENAI_API_KEY": "az-e2efake"}},
-		"amazon-bedrock": map[string]any{"type": "api_key", "env": map[string]any{"AWS_SECRET_ACCESS_KEY": "aws-e2efake"}},
-		"google":         map[string]any{"type": "api_key", "key": "!pass show e2efake"},
-		"groq":           map[string]any{"type": "api_key", "key": "gsk-e2efake"},
-		"ollama":         map[string]any{"type": "api_key", "key": "ollama-local", "env": map[string]any{"OLLAMA_HOST": "kept"}},
-		"groq-oauth":     map[string]any{"type": "oauth", "access": "at-e2efake-passed", "refresh": "rt-e2efake-passed"},
-		"openai-codex": map[string]any{
-			"type": "oauth", "access": "at-e2efake", "refresh": "rt-e2efake", "expires": 1, "accountId": "acct-1",
-			"idToken": "id-e2efake", "scopes": []any{"openid"}, "extra": map[string]any{"refresh": "rt-e2efake-x"},
-			"email": []any{map[string]any{"t": "e2efake-in-a-list"}},
-		},
-	})}
+	var host map[string]any
+	must(t, json.Unmarshal([]byte(piHostLogins), &host))
+	f := File{Kind: Pi, Salt: "s1", Pass: []string{"ollama", "groq-oauth"}, Path: writeFile(t, host)}
 	var got []string
 	for _, b := range bindings(t, f) {
 		got = append(got, b.Name+" "+strings.Join(b.Hosts, ",")+" "+b.Header+" "+b.Placeholder)
