@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"path/filepath"
+	"time"
 
 	"github.com/devvmhq/devvm/internal/backend"
 	"github.com/devvmhq/devvm/internal/image"
@@ -22,9 +23,22 @@ const Section = "net"
 // Net is a VM's network policy section: its tier, as asked, and what
 // devvm made for it.
 type Net struct {
-	Tier Tier    `json:"tier"`
-	Made NetMade `json:"made,omitzero"`
+	Tier Tier `json:"tier"`
+	// Learning is whether the VM learns the hosts it reaches, on the
+	// internet tier, and since when; the zero value while it doesn't.
+	Learning Learning `json:"learning,omitzero"`
+	Made     NetMade  `json:"made,omitzero"`
 }
+
+// Learning is a learning VM's: when it started learning the hosts it
+// reaches, which devvm network lock reads from its network log from then
+// on. A VM that learns is on the internet tier.
+type Learning struct {
+	Since time.Time `json:"since,omitzero"`
+}
+
+// On reports whether the VM learns.
+func (l Learning) On() bool { return !l.Since.IsZero() }
 
 // NetMade is what devvm made for a VM's network tier.
 type NetMade struct {
@@ -47,14 +61,26 @@ func Of(st *state.VM) (Net, error) {
 // Set sets a VM's network policy section, in st alone: inside st.Update.
 func Set(st *state.VM, n Net) error { return state.SetSection(st, Section, n) }
 
-// SetTier sets a VM's tier, in st alone: inside st.Update.
-func SetTier(st *state.VM, t Tier) error {
+// SetTier sets a VM's tier, in st alone: inside st.Update. A VM that
+// learned stops learning, unless learn starts it again since now, on the
+// internet tier (t must be TierInternet then).
+func SetTier(st *state.VM, t Tier, learn Learning) error {
 	n, err := Of(st)
 	if err != nil {
 		return err
 	}
-	n.Tier = t
+	n.Tier, n.Learning = t, learn
 	return Set(st, n)
+}
+
+// LearningOf returns a VM's learning: the zero value for a VM that doesn't
+// learn, or whose section can't be read.
+func LearningOf(st *state.VM) Learning {
+	n, err := Of(st)
+	if err != nil || n.Tier != TierInternet {
+		return Learning{}
+	}
+	return n.Learning
 }
 
 // TierOf returns a VM's tier. A section that can't be read (the folder's

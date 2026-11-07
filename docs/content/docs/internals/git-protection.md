@@ -27,7 +27,7 @@ A new VM that's interrupted before its first shell is deleted, and devvm takes i
 
 ### Symlinks
 
-devvm never locks or creates anything through a symlink, because the VM could plant one under `.git` to make devvm lock a file elsewhere. devvm reports a path that is a symlink, or is under one, instead of locking it (`git_not_locked`). devvm also checks each lock again once it's set. If the path moved in the meantime, devvm unlocks it where it landed and reports it (`git_lock_raced`).
+devvm never locks or creates anything through a symlink, because the VM could plant one under `.git` so that devvm would lock a file elsewhere. devvm reports a path that is a symlink, or is under one, instead of locking it (`git_not_locked`). devvm also checks each lock again once it's set. If the path moved in the meantime, devvm unlocks it where it landed and reports it (`git_lock_raced`).
 
 ## On each launch
 

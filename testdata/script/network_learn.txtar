@@ -1,0 +1,212 @@
+# --network learn: a new VM on the internet tier that learns the hosts it
+# reaches, which devvm network lock then adds to its own rules as it goes
+# to the allowlist tier. The events are dated after any test's learning
+# started.
+
+# --network takes learn, and nothing that's no choice.
+project learn
+! exec devvm --network learning --no-git-protect
+stderr '^devvm: arg_not_choice choices=open, internet, learn, allowlist, none command=--network given=learning$'
+
+# Made learning: the summary says so, its state is internet with when it
+# started, and its start says it learns from now on. (Its hostagent
+# here: the test's runner, so it starts confined and its proxy runs on.)
+exec sh -c 'echo $PPID > "$STUB_DIR/hostagent"'
+exec devvm --network learn --no-git-protect
+rm $STUB_DIR/hostagent
+stdout '^new_vm_network_learn$'
+! stdout new_vm_network\b
+stdout '^==> net_learn_started vm=devvm-learn-[0-9a-f]{14}$'
+! stderr net_learning
+vm_name L learn
+vm_state $L_dir/vm.json
+stdout '^net\.tier=internet$'
+stdout '^net\.learning\.since=\d{4}-'
+# Its log marks when it started learning, which devvm network log doesn't
+# show.
+grep '"event":"learn"' $L_dir/logs/network.jsonl
+exec devvm network log --json
+! stdout '"learn"'
+
+# devvm ls shows it after its tier, as devvm network does, and --json adds
+# when it started.
+exec devvm ls
+stdout '^devvm-learn-[0-9a-f]{14} .* internet \(learning\) '
+exec devvm ls --json
+stdout '^      "net": "internet",\n      "learning_since": "\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ",$'
+exec devvm network
+stdout '\Ainternet \(learning\)\n'
+exec devvm network --json
+stdout '^  "policy": "internet",\n  "learning_since": "\d{4}-'
+
+# What it reached: its launch counts the hosts beyond its allowlist,
+# leaving out github.com, which devvm's rules allow, a private address,
+# blocks and what came before it learned.
+exec sh -c 'mkdir -p "$L_dir/logs" && cp "$WORK/events.jsonl" "$L_dir/logs/network.jsonl"'
+exec devvm
+stderr '^net_learning count=4 since=\S+ \S+ vm=devvm-learn-[0-9a-f]{14}$'
+
+# --json lists them, the risky last, and changes nothing.
+exec devvm network lock --json
+stdout '^  "learning_since": "\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ",$'
+exec sh -c 'devvm network lock --json | grep -v "\"learning_since\""'
+cmp stdout $WORK/learned.json
+vm_state $L_dir/vm.json
+stdout '^net\.tier=internet$'
+! exec devvm network lock --json --all
+stderr '^devvm: flags_exclusive flag=--(json|all) other=--(json|all)$'
+! exec devvm network lock --all --none
+stderr '^devvm: flags_exclusive flag=--(all|none) other=--(all|none)$'
+! exec devvm network lock nope
+stderr '^devvm: args_none command=devvm network lock given=nope$'
+
+# Where devvm can't ask, the lock is refused, naming --all and --none, and
+# changes nothing; so is devvm network allowlist while it learns.
+! exec devvm network lock
+stderr 'net_lock_help vm=devvm-learn-[0-9a-f]{14}'
+stderr '^devvm: no_input answer=--all or --none$'
+! exec devvm network allowlist
+stderr '^devvm: net_learning_lock vm=devvm-learn-[0-9a-f]{14}$'
+vm_state $L_dir/vm.json
+stdout '^net\.tier=internet$'
+! exists $L_dir/policy
+
+# In a terminal: the context, then the picker, every host ticked but the
+# risky ones, each with its connections and the tool that made them;
+# k, which wraps to the last row, and the space tick pastebin.com too, and
+# what's ticked is added.
+env DEVVM_PICK_ON_PIPE=1
+ttyin -stdin $WORK/pick.txt
+exec devvm network lock
+stdout '^net_lock_context since=\S+ \S+$'
+stdout 'net_lock_help vm=devvm-learn-[0-9a-f]{14}\r$'
+stdout '\[x\] example\.com +net_learned_host agent=curl/8\.5\.0 count=2'
+stdout '\[x\] new\.test:8080 +net_learned_host_anon count=1'
+stdout '\[ \] pastebin\.com +net_learned_risky agent=curl/8\.5\.0 count=1'
+stdout '\[ \] 203\.0\.113\.5 +net_learned_risky_anon count=1'
+stdout '==> net_locked count=3 vm=devvm-learn-[0-9a-f]{14}$'
+stdout '^==> setting_applied vm=devvm-learn-[0-9a-f]{14}$'
+cmp $L_dir/policy $WORK/policy
+vm_state $L_dir/vm.json
+stdout '^net\.tier=allowlist$'
+! stdout learning
+env DEVVM_PICK_ON_PIPE=
+
+# Locked, it learns no more: lock is refused, ls and network show its
+# tier alone, and its launch says nothing of learning.
+! exec devvm network lock --all
+stderr '^devvm: net_not_learning vm=devvm-learn-[0-9a-f]{14}$'
+exec devvm network
+stdout '\Aallowlist\n'
+exec devvm
+! stderr net_learning
+
+# devvm network learn on a VM that exists: from allowlist it widens, at
+# once, and says it learns; again it's that way already. internet stops
+# it, the tier as it was.
+exec devvm network learn
+stdout '^==> net_learn_started vm=devvm-learn-[0-9a-f]{14}$'
+exec devvm network learn
+stdout '^==> setting_already command=devvm network learn vm=devvm-learn-[0-9a-f]{14}$'
+exec devvm network internet
+stdout '^==> net_learn_stopped vm=devvm-learn-[0-9a-f]{14}$'
+vm_state $L_dir/vm.json
+stdout '^net\.tier=internet$'
+! stdout learning
+
+# --all adds every host, the risky ones too; --none adds none. Either
+# goes to the allowlist tier at once.
+exec devvm network learn
+exec sh -c 'cp "$WORK/events.jsonl" "$L_dir/logs/network.jsonl" && rm "$L_dir/policy"'
+exec devvm network lock --all
+stdout '^==> net_locked count=4 vm=devvm-learn-[0-9a-f]{14}$'
+cmp $L_dir/policy $WORK/policy-all
+project none
+exec devvm --network learn --no-git-protect
+vm_name N none
+exec devvm network lock --none
+stdout '^==> net_locked count=0 vm=devvm-none-[0-9a-f]{14}$'
+! exists $N_dir/policy
+vm_state $N_dir/vm.json
+stdout '^net\.tier=allowlist$'
+
+# new VMs can learn by default: devvm network -g learn, which a new VM's
+# summary shows, and --network with a tier still chooses for one VM.
+exec devvm network -g learn
+stdout '^==> network_default mode=learn$'
+exec devvm network -g
+stdout '^learn # '
+project def
+exec devvm --no-git-protect
+stdout '^new_vm_network_learn$'
+vm_name D def
+vm_state $D_dir/vm.json
+stdout '^net\.learning\.since='
+project tier
+exec devvm --network internet --no-git-protect
+stdout '^new_vm_network tier=internet$'
+vm_name T tier
+vm_state $T_dir/vm.json
+! stdout learning
+exec devvm network -g allowlist
+
+-- events.jsonl --
+{"time":"2001-01-01T00:00:00Z","vm":"x","event":"tunnel","host":"before.test","port":443}
+{"time":"2099-01-01T00:00:00Z","vm":"x","event":"learn","host":"","port":0}
+{"time":"2099-01-01T00:00:01Z","vm":"x","event":"tunnel","host":"example.com","port":443,"method":"CONNECT","agent":"curl/8.5.0"}
+{"time":"2099-01-01T00:00:02Z","vm":"x","event":"intercept","host":"example.com","port":443,"method":"CONNECT","agent":"curl/8.5.0"}
+{"time":"2099-01-01T00:00:03Z","vm":"x","event":"forward","host":"new.test","port":8080,"method":"GET","path":"/"}
+{"time":"2099-01-01T00:00:04Z","vm":"x","event":"tunnel","host":"pastebin.com","port":443,"method":"CONNECT","agent":"curl/8.5.0"}
+{"time":"2099-01-01T00:00:05Z","vm":"x","event":"tunnel","host":"203.0.113.5","port":443,"method":"CONNECT"}
+{"time":"2099-01-01T00:00:06Z","vm":"x","event":"tunnel","host":"10.0.0.5","port":22,"method":"CONNECT"}
+{"time":"2099-01-01T00:00:07Z","vm":"x","event":"tunnel","host":"github.com","port":443,"method":"CONNECT"}
+{"time":"2099-01-01T00:00:08Z","vm":"x","event":"blocked","host":"blocked.test","port":443,"method":"CONNECT","reason":"denied by !blocked.test"}
+-- learned.json --
+{
+  "version": 1,
+  "hosts": [
+    {
+      "rule": "example.com",
+      "host": "example.com",
+      "port": 443,
+      "count": 2,
+      "last": "2099-01-01T00:00:02Z",
+      "agent": "curl/8.5.0"
+    },
+    {
+      "rule": "new.test:8080",
+      "host": "new.test",
+      "port": 8080,
+      "count": 1,
+      "last": "2099-01-01T00:00:03Z"
+    },
+    {
+      "rule": "203.0.113.5",
+      "host": "203.0.113.5",
+      "port": 443,
+      "count": 1,
+      "last": "2099-01-01T00:00:05Z",
+      "risk": "address"
+    },
+    {
+      "rule": "pastebin.com",
+      "host": "pastebin.com",
+      "port": 443,
+      "count": 1,
+      "last": "2099-01-01T00:00:04Z",
+      "agent": "curl/8.5.0",
+      "risk": "paste"
+    }
+  ]
+}
+-- pick.txt --
+k k
+-- policy --
+example.com
+new.test:8080
+pastebin.com
+-- policy-all --
+example.com
+new.test:8080
+203.0.113.5
+pastebin.com

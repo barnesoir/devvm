@@ -12,6 +12,7 @@ import (
 	"github.com/devvmhq/devvm/internal/from"
 	"github.com/devvmhq/devvm/internal/image"
 	"github.com/devvmhq/devvm/internal/msg"
+	"github.com/devvmhq/devvm/internal/netpolicy"
 	"github.com/devvmhq/devvm/internal/state"
 	"github.com/devvmhq/devvm/internal/tools"
 )
@@ -136,7 +137,11 @@ func ignoredFlags(o Options, from string) []flagGroup {
 	add("", flagIf(o.From != "" && o.From != from, "--from"), flagIf(o.NoDevcontainer, "--no-devcontainer"))
 	add("devvm tools", flagIf(o.Toolchains != nil, "--tools"), flagIf(o.Agents != nil, "--agents"))
 	add("devvm layer add", flagIf(o.Layers != nil, "--layers"))
-	add("devvm network "+string(o.Network), flagIf(o.Network != "", "--network"))
+	network := string(o.Network)
+	if o.Learn {
+		network = netpolicy.Learn
+	}
+	add("devvm network "+network, flagIf(o.Network != "", "--network"))
 	add("devvm git-protect off", flagIf(o.NoGitProtect, "--no-git-protect"))
 	add("devvm size", flagIf(o.Size.CPUs != "", "--cpus"), flagIf(o.Size.Memory != "", "--memory"), flagIf(o.Size.Disk != "", "--disk"))
 	add("devvm ports LIST", flagIf(o.Ports != "", "--ports"))

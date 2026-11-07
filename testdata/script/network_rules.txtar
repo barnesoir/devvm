@@ -51,7 +51,7 @@ stderr '^devvm: not_a_rule rule='
 ! exec devvm network allow
 stderr '^devvm: arg_missing args=RULE\.\.\. command=devvm network allow$'
 ! exec devvm network sideways
-stderr '^devvm: arg_not_choice choices=open, internet, allowlist, none command=devvm network given=sideways$'
+stderr '^devvm: arg_not_choice choices=open, internet, learn, allowlist, none command=devvm network given=sideways$'
 cmp $NET_dir/policy $WORK/vm.policy
 
 # A rule that isn't there: a warning; the others still go.

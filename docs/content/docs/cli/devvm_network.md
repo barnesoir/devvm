@@ -7,10 +7,10 @@ Show or change the network tier of this folder's VM
 
 ## Synopsis
 
-Show the network tier of this folder's VM, which is open, internet, allowlist, none or unenforced, and then its allowlist, policy by policy: devvm's built-in ones by name, then your files by path. With a tier, give the VM that tier: between the confined tiers at once, and into or out of open from the VM's next start, so in a terminal devvm offers to restart a running VM now. With -g, show or change the tier new VMs get, allowlist unless you change it.
+Show the network tier of this folder's VM, which is open, internet, allowlist, none or unenforced, and then its allowlist, policy by policy: devvm's built-in ones by name, then your files by path. With a tier, give the VM that tier: between the confined tiers at once, and into or out of open from the VM's next start, so in a terminal devvm offers to restart a running VM now, and learn gives it the internet tier while it learns the hosts it reaches, until devvm network lock. With -g, show or change the tier new VMs get, allowlist unless you change it.
 
 ```text
-devvm network [open|internet|allowlist|none] [flags]
+devvm network [open|internet|learn|allowlist|none] [flags]
 ```
 
 ## Examples
@@ -19,7 +19,8 @@ devvm network [open|internet|allowlist|none] [flags]
   devvm network                    # show the VM's network tier and allowlist
   devvm network allow example.com  # let the VM reach example.com
   devvm network log --blocked      # list what the VM's proxy blocked
-  devvm network internet           # let the VM reach any public host
+  devvm network learn              # let the VM reach any public host while it learns the ones it needs
+  devvm network lock               # choose which of them it keeps, and put it on the allowlist tier
   devvm network -g none            # give every new VM the none tier
 ```
 
@@ -49,5 +50,6 @@ devvm network [open|internet|allowlist|none] [flags]
 - [devvm](devvm.md): Open a shell in this folder's VM, creating it first
 - [devvm network allow](devvm_network_allow.md): Allow hosts for this folder's VM
 - [devvm network deny](devvm_network_deny.md): Deny hosts for this folder's VM
+- [devvm network lock](devvm_network_lock.md): Lock this folder's VM to the hosts it learned, on the allowlist tier
 - [devvm network log](devvm_network_log.md): Show what this folder's VM connected to and what its proxy blocked
 - [devvm network rm](devvm_network_rm.md): Remove rules from this folder's VM

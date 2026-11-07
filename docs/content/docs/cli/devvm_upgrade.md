@@ -1,6 +1,6 @@
 ---
 title: devvm upgrade
-weight: 64
+weight: 65
 ---
 
 Install devvm's newest release

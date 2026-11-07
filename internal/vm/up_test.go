@@ -766,23 +766,56 @@ func TestUpRefusesLowSpace(t *testing.T) {
 
 // The docker layer needs docker-layer of the backend, before anything is
 // built.
-// The tier picker's rows are the tiers in order, each with what it
-// reaches, the one shown on; without a picker, the one shown is kept.
+// The tier picker's rows are the network choices in order, the tiers with
+// learn after internet, each with what it reaches, the one shown on;
+// without a picker, the one shown is kept, and a choice picked gives its
+// tier and whether the VM learns.
 func TestTierRows(t *testing.T) {
-	var got []string
-	for _, r := range tierRows(netpolicy.TierInternet) {
-		s := r.Name + ":" + r.Desc.ID()
-		if r.On {
-			s = "*" + s
+	rows := func(shown netpolicy.Tier, learn bool) string {
+		var got []string
+		for _, r := range tierRows(shown, learn) {
+			s := r.Name + ":" + r.Desc.ID()
+			if r.On {
+				s = "*" + s
+			}
+			got = append(got, s)
 		}
-		got = append(got, s)
+		return strings.Join(got, " ")
 	}
-	want := "open:net_tier_open *internet:net_tier_internet allowlist:net_tier_allowlist none:net_tier_none"
-	if strings.Join(got, " ") != want {
+	want := "open:net_tier_open *internet:net_tier_internet learn:net_choice_learn allowlist:net_tier_allowlist none:net_tier_none"
+	if got := rows(netpolicy.TierInternet, false); got != want {
 		t.Errorf("rows %v, want %s", got, want)
 	}
-	if tier := (creation{Launch{&Env{}}}).chooseTier("vm", netpolicy.TierNone); tier != netpolicy.TierNone {
-		t.Errorf("without a picker: %s, want none", tier)
+	if got := rows(netpolicy.TierInternet, true); !strings.Contains(got, " internet:net_tier_internet *learn:") {
+		t.Errorf("learning: rows %v, want learn on", got)
+	}
+	if tier, learn := (creation{Launch{&Env{}}}).chooseTier("vm", netpolicy.TierNone, false); tier != netpolicy.TierNone || learn {
+		t.Errorf("without a picker: %s learning %v, want none", tier, learn)
+	}
+	picked := creation{Launch{&Env{PickOne: func(_ msg.M, rows []PickRow) int {
+		return slices.IndexFunc(rows, func(r PickRow) bool { return r.Name == netpolicy.Learn })
+	}}}}
+	if tier, learn := picked.chooseTier("vm", netpolicy.TierAllowlist, false); tier != netpolicy.TierInternet || !learn {
+		t.Errorf("learn picked: %s learning %v, want internet learning", tier, learn)
+	}
+}
+
+// A new VM learns with --network learn, or without --network when the
+// default is learn; --network with a tier overrides a default of learn.
+func TestLearns(t *testing.T) {
+	for _, tc := range []struct {
+		o     Options
+		saved string
+		want  bool
+	}{
+		{Options{}, "allowlist", false},
+		{Options{}, "learn", true},
+		{Options{Network: netpolicy.TierInternet, Learn: true}, "allowlist", true},
+		{Options{Network: netpolicy.TierInternet}, "learn", false},
+	} {
+		if got := learns(tc.o, tc.saved); got != tc.want {
+			t.Errorf("learns(%+v, %s) = %v, want %v", tc.o, tc.saved, got, tc.want)
+		}
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -73,6 +74,15 @@ func printDefault(u *ui.UI, asJSON bool, key string, v settings.Value, label str
 	}
 	_, err := io.WriteString(u.Stdout(), v.Value+" # "+label+"\n")
 	return err
+}
+
+// jsonTime is a time as --json has it: RFC 3339, in UTC, to the second;
+// "" for the zero time.
+func jsonTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 // printJSON writes v, a struct, to stdout as one indented JSON object

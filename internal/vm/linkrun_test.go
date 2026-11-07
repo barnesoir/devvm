@@ -122,6 +122,28 @@ func TestTierLinked(t *testing.T) {
 	check(app, netpolicy.TierAllowlist, "")
 }
 
+// A learning VM is an internet one to links' tier rule: as a target, an
+// internet client may link to it and an allowlist one may not; as a
+// client of an internet target, devvm network lock's allowlist is
+// refused.
+func TestTierLinkedLearning(t *testing.T) {
+	d := paths.Dirs{Data: t.TempDir()}
+	vms := linkVMs(t, d, "app", "db")
+	app, db := vms[0], vms[1]
+	if err := writeLinks(t.Context(), app, []Link{linkTo(db, "db", 5432, "127.77.0.1")}); err != nil {
+		t.Fatal(err)
+	}
+	change(t, app, withLearning(time.Now()))
+	change(t, db, withLearning(time.Now()))
+	if got := msg.NamesOf(tierLinked(d, db, netpolicy.TierInternet)); got != "" {
+		t.Errorf("a learning target for a learning client: %q", got)
+	}
+	want := "tier_linked_targets targets=" + db.Name() + " tier=allowlist vm=" + app.Name()
+	if got := msg.NamesOf(tierLinked(d, app, netpolicy.TierAllowlist)); got != want {
+		t.Errorf("locking a client of a learning target: %q, want %q", got, want)
+	}
+}
+
 // A target's removal takes the links to it out of every client's state,
 // and names the clients; their other links stay.
 func TestUnlinkTarget(t *testing.T) {

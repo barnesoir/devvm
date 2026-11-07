@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -86,6 +87,81 @@ func networkSection(s *S) {
 	netUnenforced(n)
 	netOpen(n)
 	netTiers(n)
+	netLearn(n)
+}
+
+// netLearn: a VM made with --network learn reaches two hosts off the
+// allowlist on the internet tier; devvm network lock --all adds exactly
+// the hosts it learned, at once, so an added one still works and a new
+// one is blocked.
+func netLearn(n *netRun) {
+	s := n.s
+	dir, _ := s.NewProject("net-learn")
+	vm, _, _ := launchWith(s, dir, n.home(), "--network", "learn", "--no-git-protect", "--tools", "none", "--agents", "none",
+		"--cpus", "2", "--memory", "2", "--ports", "none")
+	tier := func() string {
+		r, _ := s.Devvm(dir, "network")
+		return FirstLine(r.Stdout)
+	}
+	code := func(u string) string { return vmOut(s, vm, "curl -s -m 20 -o /dev/null -w %{http_code} "+u) }
+	s.Check("--network learn: the VM runs on the internet tier, learning, and reaches hosts off the allowlist", func() error {
+		st := s.Paths.State(vm)
+		switch {
+		case vm == "" || s.Status(vm) != "Running":
+			return errors.New("no VM, or it isn't running")
+		case st["net.tier"] != "internet" || st["net.learning.since"] == "" || tier() != "internet (learning)":
+			return fmt.Errorf("its tier is %q, learning since %q, shown as %q", st["net.tier"], st["net.learning.since"], tier())
+		case code("https://example.com/") != "200" || code("https://example.org/") != "200":
+			return errors.New("example.com or example.org wasn't reached")
+		}
+		return nil
+	})
+	var learned []string
+	s.Check("devvm network lock --json lists both hosts, and its launch counts them", func() error {
+		r, err := s.Devvm(dir, "network", "lock", "--json")
+		if err != nil {
+			return err
+		}
+		var out struct {
+			Hosts []struct{ Rule string } `json:"hosts"`
+		}
+		if err := json.Unmarshal([]byte(r.Stdout), &out); err != nil {
+			return err
+		}
+		for _, h := range out.Hosts {
+			learned = append(learned, h.Rule)
+		}
+		if !slices.Contains(learned, "example.com") || !slices.Contains(learned, "example.org") || slices.Contains(learned, "github.com") {
+			return fmt.Errorf("learned %q", learned)
+		}
+		launch, err := s.Run(devvmCmd(s, dir, "exit\n", n.home("DEVVM_MESSAGES=names")))
+		if err != nil || !Matches(launch.Out, `net_learning count=`+strconv.Itoa(len(learned))+` since=`) {
+			return failed("the launch didn't remind it of the hosts it learned", err)
+		}
+		return nil
+	})
+	s.Check("devvm network lock --all adds exactly what it learned and gives it the allowlist tier at once: an added host works, a new one is blocked", func() error {
+		if _, err := s.Devvm(dir, "network", "lock", "--all"); err != nil {
+			return err
+		}
+		policy := strings.Fields(readText(filepath.Join(s.Paths.VMDir(vm), "policy")))
+		st := s.Paths.State(vm)
+		switch {
+		case !slices.Equal(policy, learned):
+			return fmt.Errorf("its own rules are %q, want %q", policy, learned)
+		case st["net.tier"] != "allowlist" || st["net.learning.since"] != "" || tier() != "allowlist" || s.Status(vm) != "Running":
+			return fmt.Errorf("its tier is %q, learning since %q, shown as %q", st["net.tier"], st["net.learning.since"], tier())
+		case code("https://example.com/") != "200":
+			return errors.New("example.com, which it learned, failed")
+		case code("http://example.net/") != "403" || inVM(s, vm, "curl -fsS -m 20 -o /dev/null https://example.net/") == nil:
+			return errors.New("example.net, which it didn't learn, wasn't refused with a 403")
+		}
+		return nil
+	})
+	s.Check("rm --force deletes the learning VM", func() error {
+		_, err := s.Run(devvmCmd(s, dir, "", n.home(), "rm", "--force", "--no-export"))
+		return err
+	})
 }
 
 // home is the VM's HOME, with env after it.

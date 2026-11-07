@@ -23,6 +23,7 @@ type summary struct {
 	agentsFrom, layersFrom string
 	size                   Size // CPUs, memory and disk, each set (shownSize)
 	tier                   netpolicy.Tier
+	learn                  bool // it learns the hosts it reaches, on tier internet
 	ports                  string
 	dc                     string // the devcontainer.json's path, "" for none
 }
@@ -50,7 +51,11 @@ func (s summary) lines() []msg.M {
 	out = append(out, s.toolchains()...)
 	out = append(out, s.agents()...)
 	out = append(out, s.layers()...)
-	out = append(out, msg.NewVMSize(s.size.CPUs, s.size.Disk, s.size.Memory), msg.NewVMNetwork(string(s.tier)), msg.NewVMPorts(s.ports))
+	network := msg.NewVMNetwork(string(s.tier))
+	if s.learn {
+		network = msg.NewVMNetworkLearn()
+	}
+	out = append(out, msg.NewVMSize(s.size.CPUs, s.size.Disk, s.size.Memory), network, msg.NewVMPorts(s.ports))
 	if s.dc != "" {
 		out = append(out, msg.NewVMDevcontainer(s.dc))
 	}

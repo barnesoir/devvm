@@ -31,6 +31,21 @@ func pickTerminal(u *UI) *int {
 	return &restored
 }
 
+// Each row's description starts in one column: 10 wide, or past the
+// longest name, such as a host's.
+func TestPickColumns(t *testing.T) {
+	t.Parallel()
+	p := newPicking([]Section{{Choices: []Choice{{Name: "a", Desc: "first"}, {Name: "registry.npmjs.org", Desc: "second"}}}}, false)
+	out, _ := p.draw(style{}, -1)
+	if !strings.Contains(out, "  [ ] a                  first\r\n") || !strings.Contains(out, "  [ ] registry.npmjs.org second\r\n") {
+		t.Errorf("drew %q", out)
+	}
+	short := newPicking([]Section{{Choices: choices()[:2]}}, false)
+	if out, _ := short.draw(style{}, -1); !strings.Contains(out, "  [x] a          first\r\n") {
+		t.Errorf("short names: drew %q", out)
+	}
+}
+
 func TestPickKeys(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

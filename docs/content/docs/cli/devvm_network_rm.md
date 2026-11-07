@@ -1,6 +1,6 @@
 ---
 title: devvm network rm
-weight: 39
+weight: 40
 ---
 
 Remove rules from this folder's VM

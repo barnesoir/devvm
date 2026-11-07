@@ -63,6 +63,54 @@ func TierNames() []string {
 	return names
 }
 
+// Learn is the network choice that gives a VM the internet tier while it
+// learns the hosts it reaches (Learning), which devvm network lock then
+// allows on the allowlist tier. It's no tier of its own: the VM's tier is
+// internet, and links' and groups' tier rules judge it so.
+const Learn = "learn"
+
+// Choices are the network choices, as --network, devvm network and its
+// -g take them, in the order devvm shows them: the tiers, lowest to
+// highest, with learn after internet, the tier a VM learns on.
+func Choices() []string {
+	var out []string
+	for _, t := range TierNames() {
+		out = append(out, t)
+		if t == string(TierInternet) {
+			out = append(out, Learn)
+		}
+	}
+	return out
+}
+
+// Choice reads a network choice: its tier, and whether the VM learns;
+// false for a value that's no choice.
+func Choice(s string) (t Tier, learn, ok bool) {
+	if s == Learn {
+		return TierInternet, true, true
+	}
+	return Tier(s), false, Tier(s).Valid()
+}
+
+// ChoiceDesc says in a line what a VM given the choice s reaches, as the
+// pickers show it: the zero message for no choice.
+func ChoiceDesc(s string) msg.M {
+	if s == Learn {
+		return msg.NetChoiceLearn()
+	}
+	return Tier(s).Desc()
+}
+
+// Shown is a VM's tier as devvm ls shows it, and devvm network: listed,
+// its tier or unenforced (Listed), with (learning) after internet while
+// the VM learns. It's data, not a message.
+func Shown(listed string, learning bool) string {
+	if learning && listed == string(TierInternet) {
+		return listed + " (learning)"
+	}
+	return listed
+}
+
 // Valid reports whether t is one of the tiers.
 func (t Tier) Valid() bool { return slices.Contains(Tiers(), t) }
 

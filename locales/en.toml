@@ -480,8 +480,11 @@ other = "reaches only the hosts you allow (recommended)"
 [net_tier_none]
 other = "reaches only its agents' and secrets' hosts and its links"
 
+[net_choice_learn]
+other = "reaches any public host while it learns which it needs, until devvm network lock"
+
 [network_default]
-description = "mode is ask or a network tier: open, internet, allowlist or none"
+description = "mode is a network choice: open, internet, learn, allowlist or none"
 other = "new VMs' network tier is {{.mode}}"
 
 [unknown_feature]
@@ -1474,6 +1477,9 @@ other = "  size: {{.cpus}} CPUs, {{.memory}} GiB of memory and a {{.disk}} GiB d
 description = "tier is open, internet, allowlist or none"
 other = "  network tier: {{.tier}}"
 
+[new_vm_network_learn]
+other = "  network tier: internet, while it learns the hosts it needs, until devvm network lock"
+
 [new_vm_ports]
 description = "ports is all, none or a list of ports, as devvm ports shows them"
 other = "  ports: {{.ports}}"
@@ -1625,6 +1631,60 @@ other = "WARNING: {{.vm}} reaches the network directly, so its network tier isn'
 
 [net_open_log]
 other = "{{.vm}} is open, so devvm logs only what goes through its proxy, not what it reaches directly."
+
+[net_learning]
+description = "since is when the VM started learning, as YYYY-MM-DD HH:MM in this machine's time; count is the hosts it reached that its allowlist doesn't allow"
+one = "{{.vm}} is learning the hosts it reaches, with internet access, and since {{.since}} it has reached {{.count}} host beyond its allowlist. To lock it to the hosts you choose, run devvm network lock."
+other = "{{.vm}} is learning the hosts it reaches, with internet access, and since {{.since}} it has reached {{.count}} hosts beyond its allowlist. To lock it to the hosts you choose, run devvm network lock."
+
+[net_learning_since]
+description = "since is when the VM started learning, as YYYY-MM-DD HH:MM in this machine's time"
+other = "{{.vm}} has been learning the hosts it reaches, with internet access, since {{.since}}. To lock it to the hosts you choose, run devvm network lock."
+
+[net_learn_started]
+other = "{{.vm}} learns the hosts it reaches from now on, with the internet tier's access. To lock it to the hosts you choose, run devvm network lock."
+
+[net_learn_stopped]
+other = "{{.vm}} stopped learning the hosts it reaches."
+
+[net_learning_lock]
+other = "{{.vm}} is learning the hosts it reaches, so devvm network lock puts it on the allowlist tier with the hosts you choose. To add none of them, run devvm network lock --none."
+
+[net_not_learning]
+other = "{{.vm}} isn't learning the hosts it reaches, so there's nothing to lock. To start, run devvm network learn."
+
+[net_lock_help]
+other = "Choose the hosts {{.vm}} keeps. Use up and down to move, space to toggle and enter to confirm."
+
+[net_lock_context]
+description = "since is when the VM started learning, as YYYY-MM-DD HH:MM in this machine's time"
+other = "Since {{.since}} the VM could reach any public host, so this list can hold a host that a compromised dependency reached. Read each one, because devvm allows only those ticked, and addresses, paste sites and file storage start unticked."
+
+[net_learned_partial]
+description = "since is when the VM started learning, as YYYY-MM-DD HH:MM in this machine's time"
+other = "{{.vm}}'s network log no longer goes back to {{.since}}, when it started learning, so hosts it reached early on may be missing. To allow one later, run devvm network allow."
+
+[net_locked]
+one = "Added {{.count}} host to {{.vm}}'s own rules, and gave it the allowlist tier."
+other = "Added {{.count}} hosts to {{.vm}}'s own rules, and gave it the allowlist tier."
+
+[net_learned_host]
+description = "agent is the tool that reached the host most, as its User-Agent names it: npm/10.9.2"
+one = "{{.count}} connection, by {{.agent}}"
+other = "{{.count}} connections, by {{.agent}}"
+
+[net_learned_host_anon]
+one = "{{.count}} connection"
+other = "{{.count}} connections"
+
+[net_learned_risky]
+description = "agent is the tool that reached the host most, as its User-Agent names it: curl/8.5.0"
+one = "{{.count}} connection, by {{.agent}}, unticked because it can send data out"
+other = "{{.count}} connections, by {{.agent}}, unticked because it can send data out"
+
+[net_learned_risky_anon]
+one = "{{.count}} connection, unticked because it can send data out"
+other = "{{.count}} connections, unticked because it can send data out"
 
 [log_empty]
 other = "{{.vm}}'s network log is empty so far."

@@ -42,6 +42,7 @@ Every devvm command, with its arguments and flags. `devvm <command> --help` prin
 - [devvm network](devvm_network.md): Show or change the network tier of this folder's VM
 - [devvm network allow](devvm_network_allow.md): Allow hosts for this folder's VM
 - [devvm network deny](devvm_network_deny.md): Deny hosts for this folder's VM
+- [devvm network lock](devvm_network_lock.md): Lock this folder's VM to the hosts it learned, on the allowlist tier
 - [devvm network log](devvm_network_log.md): Show what this folder's VM connected to and what its proxy blocked
 - [devvm network rm](devvm_network_rm.md): Remove rules from this folder's VM
 - [devvm ports](devvm_ports.md): Show or change which ports this folder's VM forwards

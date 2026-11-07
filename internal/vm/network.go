@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/devvmhq/devvm/internal/backend"
 	"github.com/devvmhq/devvm/internal/image"
@@ -27,6 +28,9 @@ type Net struct{ *Env }
 // shows it.
 type NetworkShown struct {
 	Policy string // its tier or unenforced, as devvm ls shows it
+	// Learning is since when it learns the hosts it reaches, the zero
+	// time when it doesn't.
+	Learning time.Time
 	// Rules are the rules of each policy file its proxy reads that has
 	// any, in order.
 	Rules []netpolicy.RuleFile
@@ -42,6 +46,7 @@ func (e Net) Network(ctx context.Context) (NetworkShown, error) {
 	if s.Policy, err = netpolicy.Listed(ctx, t.b, t.st, t.in.Status == backend.StatusRunning); err != nil {
 		return s, err
 	}
+	s.Learning = netpolicy.LearningOf(t.st).Since
 	set := netpolicy.Policies(e.Dirs, t.f.Name, netpolicy.TierOf(t.st), image.Name(t.st.Image), tools.Names(t.st))
 	s.Rules, err = netpolicy.ReadPolicies(e.Proxy.Assets, set)
 	return s, err
@@ -88,35 +93,101 @@ func (c NetworkChoice) Set(mode string) error {
 // is refused while it would break links' tier rule (tierLinked), and
 // while the VM is in a group, whose VMs are all on one tier.
 func (e Net) SetTier(ctx context.Context, to netpolicy.Tier, command string) error {
+	return e.setTier(ctx, to, false, command)
+}
+
+// Learn makes the folder's VM learn the hosts it reaches from now on, on
+// the internet tier, as command (devvm network learn) asks: its tier
+// changes as SetTier changes it.
+func (e Net) Learn(ctx context.Context, command string) error {
+	return e.setTier(ctx, netpolicy.TierInternet, true, command)
+}
+
+// setTier gives the folder's VM the tier to, learning with learn, as
+// SetTier says. A VM that learned stops, and one that learns can't go to
+// the allowlist tier but through devvm network lock, which adds the hosts
+// it learned (net_learning_lock). In a group, its tier can't change and
+// it can't start learning.
+func (e Net) setTier(ctx context.Context, to netpolicy.Tier, learn bool, command string) error {
 	t, err := e.finder.target(ctx, need{has: hasMade})
 	if err != nil {
 		return err
 	}
-	vm, st, b := t.f.Name, t.st, t.b
-	from := netpolicy.TierOf(st)
-	if from == to {
+	vm, st := t.f.Name, t.st
+	from, was := netpolicy.TierOf(st), netpolicy.LearningOf(st).On()
+	switch g := groupOf(st); {
+	case from == to && was == learn:
 		e.Info(msg.SettingAlready(command, vm))
 		return nil
-	}
-	if g := groupOf(st); g != "" {
+	case g != "" && (from != to || learn):
 		return msg.GroupTierFixed(g, vm)
+	case was && to == netpolicy.TierAllowlist:
+		return msg.NetLearningLock(vm)
 	}
-	if err := tierLinked(e.Dirs, st, to); err != nil {
+	if from != to {
+		if ok, err := e.checkTier(t, from, to, command); !ok {
+			return err
+		}
+	}
+	var lr netpolicy.Learning
+	if learn {
+		lr.Since = time.Now().UTC()
+	}
+	if err := st.Update(ctx, func(st *state.VM) error { return netpolicy.SetTier(st, to, lr) }); err != nil {
 		return err
+	}
+	if learn {
+		e.markLearning(vm)
+	}
+	// Said first: a restart into or out of open opens a shell, and doesn't
+	// return.
+	switch {
+	case learn:
+		e.Info(msg.NetLearnStarted(vm))
+	case was:
+		e.Info(msg.NetLearnStopped(vm))
+	}
+	if from == to {
+		return nil
+	}
+	return e.applyTier(ctx, t, from, to)
+}
+
+// markLearning marks in vm's network log that it starts learning now
+// (Log.MarkLearning), so devvm network lock knows whether the log still
+// goes back that far. Without the mark, it only warns that the log may
+// have lost hosts, so a mark that can't be written is logged, not a
+// failure.
+func (e *Env) markLearning(vm string) {
+	if err := netpolicy.NewLog(e.Dirs, vm).MarkLearning(vm); err != nil {
+		_, _ = io.WriteString(e.LogWriter(), "devvm: marking the network log of "+vm+": "+err.Error()+"\n")
+	}
+}
+
+// checkTier checks that t's VM may go from one tier to another, as
+// command asks: links' tier rule (tierLinked), the widening check for a
+// lower tier, and a backend that can confine it for a confined one.
+func (e Net) checkTier(t *target, from, to netpolicy.Tier, command string) (bool, error) {
+	if err := tierLinked(e.Dirs, t.st, to); err != nil {
+		return false, err
 	}
 	if !to.AtLeast(from) {
 		if ok, err := t.widen(command); !ok {
-			return err
+			return false, err
 		}
 	}
 	if to.Confined() {
-		if err := e.Registry.Require(b, vm, backend.Confinement{Net: to.Net()}.Features()...); err != nil {
-			return err
+		if err := e.Registry.Require(t.b, t.f.Name, backend.Confinement{Net: to.Net()}.Features()...); err != nil {
+			return false, err
 		}
 	}
-	if err := st.Update(ctx, func(st *state.VM) error { return netpolicy.SetTier(st, to) }); err != nil {
-		return err
-	}
+	return true, nil
+}
+
+// applyTier applies the tier change from one tier to another that t's
+// state has now, as SetTier says.
+func (e Net) applyTier(ctx context.Context, t *target, from, to netpolicy.Tier) error {
+	vm, st, b := t.f.Name, t.st, t.b
 	running := t.in.Status == backend.StatusRunning
 	if from.Confined() && to.Confined() {
 		if running {
@@ -138,6 +209,134 @@ func (e Net) SetTier(ctx context.Context, to netpolicy.Tier, command string) err
 		e.Info(msg.NextStart(1, vm))
 	}
 	return nil
+}
+
+// LockOptions are what devvm network lock adds of the hosts the VM
+// learned: those chosen in the picker, or every one (All) or none (None).
+type LockOptions struct{ All, None bool }
+
+// Learned returns the hosts the folder's VM reached since it started
+// learning that its allowlist tier doesn't allow (netpolicy's Learned).
+// A VM that doesn't learn is refused (net_not_learning).
+func (e Net) Learned(ctx context.Context) (netpolicy.LearnedHosts, error) {
+	t, err := e.lockTarget(ctx)
+	if err != nil {
+		return netpolicy.LearnedHosts{}, err
+	}
+	return e.Proxy.Learned(t.st)
+}
+
+// lockTarget finds the folder's VM for devvm network lock: one that
+// learns.
+func (e Net) lockTarget(ctx context.Context) (*target, error) {
+	t, err := e.finder.target(ctx, need{has: hasMade})
+	if err == nil && !netpolicy.LearningOf(t.st).On() {
+		err = msg.NetNotLearning(t.f.Name)
+	}
+	return t, err
+}
+
+// Lock locks the folder's VM, which learns, to the hosts it learned that
+// o chooses: it adds their rules, each an exact host and port, to the
+// VM's own policy file, then gives the VM the allowlist tier, at once,
+// as SetTier does between confined tiers, which ends its learning. In a
+// group its tier can't change, and links' tier rule holds, both checked
+// before anything is asked.
+func (e Net) Lock(ctx context.Context, o LockOptions) error {
+	t, err := e.lockTarget(ctx)
+	if err != nil {
+		return err
+	}
+	vm, st := t.f.Name, t.st
+	if g := groupOf(st); g != "" {
+		return msg.GroupTierFixed(g, vm)
+	}
+	from, to := netpolicy.TierOf(st), netpolicy.TierAllowlist
+	if ok, err := e.checkTier(t, from, to, "devvm network lock"); !ok {
+		return err
+	}
+	learned, err := e.Proxy.Learned(st)
+	if err != nil {
+		return err
+	}
+	rules, err := e.chooseLearned(vm, learned, o)
+	if err != nil {
+		return err
+	}
+	file := e.Dirs.VM(vm).Policy()
+	added := 0
+	for _, r := range rules {
+		ok, err := netpolicy.AddRule(file, r)
+		if err != nil {
+			return err
+		}
+		if ok {
+			added++
+		}
+	}
+	for _, m := range netpolicy.PolicyWarnings([]string{file}) {
+		e.Warn(m)
+	}
+	if err := st.Update(ctx, func(st *state.VM) error { return netpolicy.SetTier(st, to, netpolicy.Learning{}) }); err != nil {
+		return err
+	}
+	e.Info(msg.NetLocked(added, vm))
+	return e.applyTier(ctx, t, from, to)
+}
+
+// chooseLearned returns the rules of the learned hosts that o chooses:
+// every one, none, or in a terminal those ticked in the picker, which
+// starts with every host but the risky ones ticked, after a line saying
+// that learning was internet access. Where the picker can't show, it's
+// refused, naming --all and --none. With no hosts, nothing is asked.
+func (e Net) chooseLearned(vm string, l netpolicy.LearnedHosts, o LockOptions) ([]string, error) {
+	var all []string
+	for _, h := range l.Hosts {
+		all = append(all, h.Rule)
+	}
+	switch {
+	case o.All:
+		return all, nil
+	case o.None || len(l.Hosts) == 0:
+		return nil, nil
+	}
+	q := msg.NetLockHelp(vm).AnsweredBy("--all or --none")
+	if !e.CanPick() || e.PickParts == nil {
+		return nil, q.Refused(false)
+	}
+	if l.Partial {
+		e.Warn(msg.NetLearnedPartial(learnedSince(netpolicy.Learning{Since: l.Since}), vm))
+	}
+	e.Say(msg.NetLockContext(learnedSince(netpolicy.Learning{Since: l.Since})))
+	rows := make([]PickRow, len(l.Hosts))
+	for i, h := range l.Hosts {
+		rows[i] = PickRow{Name: h.Rule, Desc: learnedDesc(h), On: h.Risk == ""}
+	}
+	var chosen []string
+	for _, p := range e.PickParts(q.M(), []PickPart{{Rows: rows}}) {
+		for _, r := range p.Rows {
+			if r.On {
+				chosen = append(chosen, r.Name)
+			}
+		}
+	}
+	return chosen, nil
+}
+
+// learnedDesc is what the lock's picker says of a learned host: how many
+// connections it had, the tool that made them most, and for a risky host
+// why it starts unticked.
+func learnedDesc(h netpolicy.Learned) msg.M {
+	agent := msg.Printable(h.Agent)
+	switch {
+	case h.Risk != "" && agent != "":
+		return msg.NetLearnedRisky(agent, h.Count)
+	case h.Risk != "":
+		return msg.NetLearnedRiskyAnon(h.Count)
+	case agent != "":
+		return msg.NetLearnedHost(agent, h.Count)
+	}
+	return msg.NetLearnedHostAnon(h.Count)
 }
 
 // LogOptions are what devvm network log shows of the network log.

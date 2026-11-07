@@ -32,7 +32,7 @@ This page assumes you've [installed devvm](install.md) and that `devvm doctor` f
 4. **Confirm, or customize it.** Confirm to make the VM as shown, or customize it to choose its toolchains, coding agents, layers, network tier, ports and size first ([what a new VM gets](../using/images.md#what-a-new-vm-gets)). Flags such as `--agents claude` choose a part beforehand, and devvm asks nothing when the flags choose everything.
 
    > [!TIP]
-   > Keep allowlist, the default, unless the VM needs more. The allowlist [network tier](../safety/network.md) limits the VM to the hosts you allow, and every tier keeps your secrets on your machine.
+   > Keep allowlist, the default, unless the VM needs more. The allowlist [network tier](../safety/network.md) limits the VM to the hosts you allow, and every tier keeps your secrets on your machine. When you don't know yet which hosts the project needs, choose `learn`: the VM reaches any public host while it learns them, and `devvm network lock` then keeps the ones you choose on the allowlist tier ([learning the hosts a VM needs](../safety/network.md#learning-the-hosts-a-vm-needs)).
 
 5. **Wait for the base image.** The first time, devvm builds it with the extras you chose, which takes a few minutes once, and later VMs start in seconds ([images](../using/images.md)).
 

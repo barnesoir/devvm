@@ -52,7 +52,7 @@ devvm deletes the VM made for an earlier folder at this path only after you conf
 | `IMAGE` | its image, base and its layers, with a base from a container image as `base (from node:24)` ([details](from.md)) |
 | `TOOLS` | its shared tools, joined with commas, such as `node,claude`, or `-` for none |
 | `GIT` | its [`.git` protection](../safety/git-protection.md), `on`, `strict` or `off`, or `clone` for a [`--clone`](clone.md) VM |
-| `NET` | its [network tier](../safety/network.md#network-tiers), `open`, `internet`, `allowlist` or `none`, or `unenforced` ([the self-check](../internals/network.md#the-self-check)) |
+| `NET` | its [network tier](../safety/network.md#network-tiers), `open`, `internet`, `allowlist` or `none`, or `unenforced` ([the self-check](../internals/network.md#the-self-check)), and `internet (learning)` while it [learns the hosts it needs](../safety/network.md#learning-the-hosts-a-vm-needs) |
 | `LINKS` | how many [links](links.md) it has to ports of your other VMs, or `-` for none |
 | `FOLDER` | its project folder, with `(gone)` after it when nothing is at that path, which `devvm rm VM` deals with ([a VM whose folder is gone](#a-vm-whose-folder-is-gone)), or `(not connected)` when the folder was on a disk that isn't connected ([details](#a-folder-on-a-disk-that-isnt-connected)) |
 
@@ -60,7 +60,7 @@ A value the VM's state doesn't have shows as `-`, so a VM whose creation didn't 
 
 ### devvm ls --json
 
-`devvm ls --json` prints the same list as one JSON object, as [output for scripts](command-line.md#output-for-scripts) describes. `vms` has a VM's columns as fields, sorted by name. `image` is the image alone, `tools` is the list of its shared tools, `[]` for none, and `from` is the container image its base started from, which is left out for a base from Ubuntu's cloud image. A value the VM's state doesn't have is `""`. `folder` is the folder alone, and `folder_state` is `there` when something is at its path, `gone` when nothing is, and `not_connected` when the folder was on a disk that isn't connected. `links` is how many links the VM has, `0` for none.
+`devvm ls --json` prints the same list as one JSON object, as [output for scripts](command-line.md#output-for-scripts) describes. `vms` has a VM's columns as fields, sorted by name. `image` is the image alone, `tools` is the list of its shared tools, `[]` for none, and `from` is the container image its base started from, which is left out for a base from Ubuntu's cloud image. A value the VM's state doesn't have is `""`. `folder` is the folder alone, and `folder_state` is `there` when something is at its path, `gone` when nothing is, and `not_connected` when the folder was on a disk that isn't connected. `links` is how many links the VM has, `0` for none. `net` is the tier alone, and a VM that's learning the hosts it needs also has `learning_since`, the time it started learning.
 
 ```json
 {
@@ -73,7 +73,8 @@ A value the VM's state doesn't have shows as `-`, so a VM whose creation didn't 
       "tools": ["node", "claude"],
       "from": "node:24",
       "git": "on",
-      "net": "on",
+      "net": "internet",
+      "learning_since": "2026-11-07T10:00:00Z",
       "backend": "lima",
       "folder": "/Users/you/code/website",
       "folder_state": "there",

@@ -163,9 +163,9 @@ project none
 ! exec devvm network
 stderr '^devvm: no_vm dir=\S*/none$'
 ! exec devvm network sideways
-stderr '^devvm: arg_not_choice choices=open, internet, allowlist, none command=devvm network given=sideways$'
+stderr '^devvm: arg_not_choice choices=open, internet, learn, allowlist, none command=devvm network given=sideways$'
 ! exec devvm network on
-stderr '^devvm: arg_not_choice choices=open, internet, allowlist, none command=devvm network given=on$'
+stderr '^devvm: arg_not_choice choices=open, internet, learn, allowlist, none command=devvm network given=on$'
 cd $WORK/off
 exec devvm network
 stdout '^open$'
@@ -203,7 +203,8 @@ stdout '^net\.made\.check=ok$'
 # In a terminal, without customizing the VM, its summary shows allowlist
 # and nothing asks for the tier. Customizing it shows the tier's picker
 # after the agents of the first run and the parts' picker, allowlist on:
-# k moves up to internet, and Enter makes it the VM's. The pickers show
+# k k moves up past learn to internet, and Enter makes it the VM's, which
+# doesn't learn. The pickers show
 # with a terminal on stdout too, which a test build's DEVVM_PICK_ON_PIPE
 # stands in for.
 env DEVVM_PICK_ON_PIPE=1
@@ -223,6 +224,7 @@ stdout 'net_tier_help vm=devvm-asked-[0-9a-f]{14}\r$'
 vm_name ASKED asked
 vm_state $ASKED_dir/vm.json
 stdout '^net\.tier=internet$'
+! stdout learning
 # --network: the tier, unasked, the rest still customized.
 project flagged
 ttyin -stdin $WORK/enter.txt
@@ -237,7 +239,7 @@ stdout '^net\.tier=none$'
 project badflag
 stub_reset
 ! exec devvm --network on --no-git-protect
-stderr '^devvm: arg_not_choice choices=open, internet, allowlist, none command=--network given=on$'
+stderr '^devvm: arg_not_choice choices=open, internet, learn, allowlist, none command=--network given=on$'
 stderr '^usage_help command=devvm$'
 ! stub_calls
 cd $WORK
@@ -250,9 +252,9 @@ stdout '\Aallowlist # devvm: default\n\z'
 exec devvm network -g --json
 stdout '\A{\n  "version": 1,\n  "policy": "allowlist",\n  "source": "built-in"\n}\n\z'
 ! exec devvm network -g ask
-stderr '^devvm: arg_not_choice choices=open, internet, allowlist, none command=devvm network given=ask$'
+stderr '^devvm: arg_not_choice choices=open, internet, learn, allowlist, none command=devvm network given=ask$'
 ! exec devvm network -g sideways
-stderr '^devvm: arg_not_choice choices=open, internet, allowlist, none command=devvm network given=sideways$'
+stderr '^devvm: arg_not_choice choices=open, internet, learn, allowlist, none command=devvm network given=sideways$'
 
 # A saved open: new VMs are open, unasked and unwarned; --network
 # allowlist beats it. The VMs that exist keep theirs.
@@ -343,7 +345,7 @@ stderr '\S*/config/devvm/config\.toml:2: '
 stderr '\S*/config/devvm/config\.toml:2: '
 cp $WORK/config-maybe.toml $CFG/config.toml
 ! exec devvm network -g
-stderr '^devvm: net_default_failed reason=\S*/config/devvm/config\.toml:1: "maybe" isn''t one of open, internet, allowlist, none$'
+stderr '^devvm: net_default_failed reason=\S*/config/devvm/config\.toml:1: "maybe" isn''t one of open, internet, learn, allowlist, none$'
 rm $CFG/config.toml
 exec devvm --network allowlist --no-git-protect
 
@@ -361,7 +363,7 @@ network = "maybe"
 -- tiers.txt --
 y
 
-k
+kk
 
 
 

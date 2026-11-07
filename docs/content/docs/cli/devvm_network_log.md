@@ -1,6 +1,6 @@
 ---
 title: devvm network log
-weight: 38
+weight: 39
 ---
 
 Show what this folder's VM connected to and what its proxy blocked

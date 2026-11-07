@@ -2,6 +2,7 @@ package vm
 
 import (
 	"context"
+	"time"
 
 	"github.com/devvmhq/devvm/internal/backend"
 	"github.com/devvmhq/devvm/internal/gitprotect"
@@ -12,15 +13,18 @@ import (
 // Listed is a project VM as devvm ls shows it. A field is "" when the VM's
 // state doesn't record it (its creation didn't finish).
 type Listed struct {
-	Name    string
-	Status  string   // as its backend reports it
-	Image   string   // its image: base, or its layers joined with +
-	Tools   []string // its shared tools: node claude
-	From    string   // the container image its base started from (--from), if any
-	Git     string   // its .git protection: on, off, or clone for a --clone VM
-	Net     string   // its tier, or unenforced (netpolicy.Listed)
-	Backend string
-	Folder  string
+	Name   string
+	Status string   // as its backend reports it
+	Image  string   // its image: base, or its layers joined with +
+	Tools  []string // its shared tools: node claude
+	From   string   // the container image its base started from (--from), if any
+	Git    string   // its .git protection: on, off, or clone for a --clone VM
+	Net    string   // its tier, or unenforced (netpolicy.Listed)
+	// Learning is since when it learns the hosts it reaches, on the
+	// internet tier; the zero time when it doesn't.
+	Learning time.Time
+	Backend  string
+	Folder   string
 	// FolderState is what's at Folder's path (FolderOf): a VM whose
 	// folder is gone or not connected is deleted only by name, with
 	// devvm rm VM.
@@ -67,5 +71,6 @@ func listed(ctx context.Context, k Known) (Listed, error) {
 	}
 	var err error
 	l.Net, err = netpolicy.Listed(ctx, k.Backend, st, in.Status == backend.StatusRunning)
+	l.Learning = netpolicy.LearningOf(st).Since
 	return l, err
 }

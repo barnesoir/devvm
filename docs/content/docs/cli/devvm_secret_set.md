@@ -1,6 +1,6 @@
 ---
 title: devvm secret set
-weight: 49
+weight: 50
 ---
 
 Save a secret on this machine

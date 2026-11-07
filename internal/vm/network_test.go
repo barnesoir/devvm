@@ -2,9 +2,13 @@ package vm
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/devvmhq/devvm/internal/backend"
 	"github.com/devvmhq/devvm/internal/msg"
@@ -130,6 +134,189 @@ func TestSetTierConfined(t *testing.T) {
 	}
 	if st, _ := state.ReadVM(e.Dirs, vm); get(st, KeyNet) != "internet" {
 		t.Errorf("net=%q", get(st, KeyNet))
+	}
+}
+
+// learnedLog writes a learning VM's network log: what its proxy let it
+// reach (example.com twice by curl, pastebin.com by HTTP, github.com,
+// which its allowlist allows, a private address, and a host reached
+// before it learned), and a block.
+func learnedLog(t *testing.T, e *Env, vm string, since time.Time) {
+	t.Helper()
+	at := func(d time.Duration) string { return since.Add(d).UTC().Format(time.RFC3339) }
+	lines := []string{
+		`{"time":"` + at(-time.Hour) + `","event":"tunnel","host":"before.test","port":443}`,
+		`{"time":"` + at(0) + `","event":"learn","host":"","port":0}`,
+		`{"time":"` + at(time.Second) + `","event":"tunnel","host":"example.com","port":443,"agent":"curl/8.5.0"}`,
+		`{"time":"` + at(2*time.Second) + `","event":"intercept","host":"example.com","port":443,"agent":"curl/8.5.0 extra"}`,
+		`{"time":"` + at(3*time.Second) + `","event":"forward","host":"pastebin.com","port":80,"method":"POST"}`,
+		`{"time":"` + at(4*time.Second) + `","event":"tunnel","host":"github.com","port":443}`,
+		`{"time":"` + at(5*time.Second) + `","event":"tunnel","host":"10.0.0.5","port":22}`,
+		`{"time":"` + at(6*time.Second) + `","event":"blocked","host":"blocked.test","port":443}`,
+	}
+	p := e.Dirs.VM(vm).EventLog()
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// devvm network learn: the internet tier, learning since now, applied at
+// once, and said; again, it's that way already. A learning VM goes to
+// the allowlist tier only through devvm network lock, and internet stops
+// its learning.
+func TestLearn(t *testing.T) {
+	e, f, _ := upEnv(t, allNative())
+	f.LifelineFile = filepath.Join(e.Dirs.Lima, "vm", "ha.pid")
+	f.ExecFunc = noDirect
+	st := existingVM(t, e, Options{Network: "allowlist"})
+	vm, n := st.Name(), Net{e}
+	var said msg.Recorder
+	fake(e).OnInfo = said.Add
+	if err := n.Learn(t.Context(), "devvm network learn"); err != nil {
+		t.Fatal(msg.NamesOf(err))
+	}
+	if err := n.Learn(t.Context(), "devvm network learn"); err != nil {
+		t.Fatal(msg.NamesOf(err))
+	}
+	want := []string{"net_learn_started vm=" + vm, "setting_applied vm=" + vm, "setting_already command=devvm network learn vm=" + vm}
+	if got := said.Names(); !slices.Equal(got, want) {
+		t.Errorf("said %q, want %q", got, want)
+	}
+	st, _ = state.ReadVM(e.Dirs, vm)
+	if lr := netpolicy.LearningOf(st); get(st, KeyNet) != "internet" || !lr.On() || time.Since(lr.Since) > time.Minute {
+		t.Errorf("net=%q, learning %+v", get(st, KeyNet), lr)
+	}
+	if s, err := n.Network(t.Context()); err != nil || s.Learning.IsZero() {
+		t.Errorf("Network = %+v, %v", s, err)
+	}
+	if err := n.SetTier(t.Context(), netpolicy.TierAllowlist, "devvm network allowlist"); msg.NamesOf(err) != "net_learning_lock vm="+vm {
+		t.Errorf("allowlist while learning = %v", msg.NamesOf(err))
+	}
+	said = msg.Recorder{}
+	if err := n.SetTier(t.Context(), netpolicy.TierInternet, "devvm network internet"); err != nil {
+		t.Fatal(msg.NamesOf(err))
+	}
+	if got := said.Names(); !slices.Equal(got, []string{"net_learn_stopped vm=" + vm}) {
+		t.Errorf("said %q", got)
+	}
+	if st, _ := state.ReadVM(e.Dirs, vm); get(st, KeyNet) != "internet" || netpolicy.LearningOf(st).On() {
+		t.Errorf("net=%q, still learning", get(st, KeyNet))
+	}
+	if err := n.Lock(t.Context(), LockOptions{All: true}); msg.NamesOf(err) != "net_not_learning vm="+vm {
+		t.Errorf("Lock when not learning = %v", msg.NamesOf(err))
+	}
+}
+
+// devvm network lock: the hosts the VM reached since it started learning
+// that its allowlist doesn't allow, each once, the risky last; where the
+// picker can't show, refused naming --all and --none; in a group,
+// refused. --all adds every one to the VM's own rules and gives it the
+// allowlist tier at once, its proxy started again; launches remind it
+// before.
+func TestLock(t *testing.T) {
+	e, f, _ := upEnv(t, allNative())
+	f.LifelineFile = filepath.Join(e.Dirs.Lima, "vm", "ha.pid")
+	f.ExecFunc = noDirect
+	st := existingVM(t, e, Options{Network: "internet", Learn: true})
+	vm, n := st.Name(), Net{e}
+	since := netpolicy.LearningOf(st).Since
+	if since.IsZero() {
+		t.Fatal("--network learn: not learning")
+	}
+	learnedLog(t, e, vm, since)
+	var noted msg.Recorder
+	fake(e).OnNote = noted.Add
+	if err := (Launch{e}).Up(t.Context(), Options{}); err != nil {
+		t.Fatal(msg.NamesOf(err))
+	}
+	if !slices.ContainsFunc(noted.Names(), func(s string) bool { return strings.HasPrefix(s, "net_learning count=2 since=") }) {
+		t.Errorf("noted %q, want the reminder with 2 hosts", noted.Names())
+	}
+	l, err := n.Learned(t.Context())
+	var got []string
+	for _, h := range l.Hosts {
+		got = append(got, h.Rule+" "+strconv.Itoa(h.Count)+" "+h.Agent+" "+string(h.Risk))
+	}
+	if want := []string{"example.com 2 curl/8.5.0 ", "pastebin.com 1  paste"}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("Learned = %q, %v; want %q", got, err, want)
+	}
+	if err := n.Lock(t.Context(), LockOptions{}); msg.NamesOf(err) != "no_input answer=--all or --none" {
+		t.Errorf("Lock without a terminal = %v", msg.NamesOf(err))
+	}
+	change(t, st, func(st *state.VM) error {
+		return edit(st, linksSection, func(l *linksInVM) error { l.Group = "web"; return nil })
+	})
+	if err := n.Lock(t.Context(), LockOptions{All: true}); msg.NamesOf(err) != "group_tier_fixed group=web vm="+vm {
+		t.Errorf("Lock in a group = %v", msg.NamesOf(err))
+	}
+	change(t, st, func(st *state.VM) error {
+		return edit(st, linksSection, func(l *linksInVM) error { l.Group = ""; return nil })
+	})
+	pid, _ := e.Proxy.PID(vm)
+	var said msg.Recorder
+	fake(e).OnInfo = said.Add
+	if err := n.Lock(t.Context(), LockOptions{All: true}); err != nil {
+		t.Fatal(msg.NamesOf(err))
+	}
+	if got, want := said.Names(), []string{"net_locked count=2 vm=" + vm, "setting_applied vm=" + vm}; !slices.Equal(got, want) {
+		t.Errorf("said %q, want %q", got, want)
+	}
+	if b, _ := os.ReadFile(e.Dirs.VM(vm).Policy()); string(b) != "example.com\npastebin.com\n" {
+		t.Errorf("its policy:\n%s", b)
+	}
+	st, _ = state.ReadVM(e.Dirs, vm)
+	if get(st, KeyNet) != "allowlist" || netpolicy.LearningOf(st).On() {
+		t.Errorf("net=%q, learning %v", get(st, KeyNet), netpolicy.LearningOf(st).On())
+	}
+	if again, ok := e.Proxy.PID(vm); !ok || again == pid {
+		t.Errorf("proxy %d, was %d", again, pid)
+	}
+}
+
+// The lock's picker starts with every host ticked but the risky ones,
+// after its context; what's ticked when it's confirmed is what's added.
+// --none adds nothing.
+func TestChooseLearned(t *testing.T) {
+	l := netpolicy.LearnedHosts{Since: time.Now(), Hosts: []netpolicy.Learned{
+		{Rule: "a.test", Count: 3, Agent: "npm/10"},
+		{Rule: "b.test", Count: 1},
+		{Rule: "1.2.3.4", Count: 2, Risk: netpolicy.RiskAddress},
+	}}
+	var shown []string
+	e := &Env{Reporter: &msg.Fake{Picks: true}, PickParts: func(_ msg.M, parts []PickPart) []PickPart {
+		for i, r := range parts[0].Rows {
+			shown = append(shown, r.Name+" "+r.Desc.ID()+" "+strconv.FormatBool(r.On))
+			parts[0].Rows[i].On = r.Name != "b.test"
+		}
+		return parts
+	}}
+	var said msg.Recorder
+	e.Reporter.(*msg.Fake).OnSay = said.Add
+	got, err := Net{e}.chooseLearned("vm", l, LockOptions{})
+	want := []string{"a.test net_learned_host true", "b.test net_learned_host_anon true", "1.2.3.4 net_learned_risky_anon false"}
+	if err != nil || !slices.Equal(shown, want) || !slices.Equal(got, []string{"a.test", "1.2.3.4"}) {
+		t.Errorf("shown %q, chose %q, %v", shown, got, err)
+	}
+	if len(said.Names()) != 1 || !strings.HasPrefix(said.Names()[0], "net_lock_context since=") {
+		t.Errorf("said %q", said.Names())
+	}
+	if got, err := (Net{e}).chooseLearned("vm", l, LockOptions{None: true}); err != nil || len(got) != 0 {
+		t.Errorf("--none: %q, %v", got, err)
+	}
+	// A log that lost its first hosts: warned of, before the list.
+	var warned msg.Recorder
+	e.Reporter.(*msg.Fake).OnWarn = warned.Add
+	l.Partial = true
+	if _, err := (Net{e}).chooseLearned("vm", l, LockOptions{}); err != nil || len(warned.Names()) != 1 ||
+		!strings.HasPrefix(warned.Names()[0], "net_learned_partial since=") {
+		t.Errorf("partial: warned %q, %v", warned.Names(), err)
+	}
+	// --all takes every host, the risky ones too, unasked.
+	if got, err := (Net{e}).chooseLearned("vm", l, LockOptions{All: true}); err != nil || !slices.Equal(got, []string{"a.test", "b.test", "1.2.3.4"}) {
+		t.Errorf("--all: %q, %v", got, err)
 	}
 }
 

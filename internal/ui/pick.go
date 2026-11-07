@@ -105,8 +105,9 @@ type picking struct {
 func newPicking(sections []Section, one bool) *picking {
 	p := &picking{sections: sections, one: one}
 	for i := range sections {
-		for j := range sections[i].Choices {
-			c := &sections[i].Choices[j]
+		cs := sections[i].Choices
+		for j := range cs {
+			c := &cs[j]
 			if !c.Fixed {
 				p.movable = append(p.movable, len(p.rows))
 			}
@@ -125,6 +126,11 @@ func (p *picking) draw(s style, cur int) (string, int) {
 	}
 	var b strings.Builder
 	lines, row := 0, 0
+	// Names line up at 10 columns, or the longest name's, such as a host's.
+	width := 10
+	for _, c := range p.rows {
+		width = max(width, len([]rune(msg.OneLine(c.Name))))
+	}
 	for _, sec := range p.sections {
 		if sec.Heading.ID() != "" {
 			fmt.Fprintf(&b, "\033[2K%s\r\n", s.paint(sgrBold, msg.OneLine(s.line(sec.Heading))))
@@ -138,7 +144,7 @@ func (p *picking) draw(s style, cur int) (string, int) {
 			if cur >= 0 && p.movable[cur] == row {
 				ptr = ">"
 			}
-			line := fmt.Sprintf("%s %s%s%s %-10s %s", ptr, open, mark, closed, msg.OneLine(c.Name), msg.OneLine(c.Desc))
+			line := fmt.Sprintf("%s %s%s%s %-*s %s", ptr, open, mark, closed, width, msg.OneLine(c.Name), msg.OneLine(c.Desc))
 			if c.Fixed {
 				line = s.paint(sgrDim, line)
 			}

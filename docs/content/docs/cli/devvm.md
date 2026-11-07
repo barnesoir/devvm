@@ -35,7 +35,7 @@ devvm [flags]
       --here              use this folder's own VM, never that of a folder it's inside
       --layers LIST       the LIST of layers a new VM's image gets, bottom first, such as docker,mine, or none (default: devvm setup's)
       --memory GiB        the VM's memory in GiB, such as 16 or 16G (default: devvm size -g, else the image's)
-      --network TIER      the network TIER a new VM gets: open, internet, allowlist or none (default: devvm network -g's, else allowlist)
+      --network TIER      the network TIER a new VM gets: open, internet, allowlist or none, or learn for internet while it learns the hosts it needs (default: devvm network -g's, else allowlist)
       --no-devcontainer   create the VM without reading the folder's devcontainer.json
       --no-git-protect    create the VM without .git protection
       --no-input          never ask, and fail where devvm would ask, naming the flag that answers it

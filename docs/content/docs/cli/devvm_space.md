@@ -1,6 +1,6 @@
 ---
 title: devvm space
-weight: 54
+weight: 55
 ---
 
 Show what devvm keeps on this machine and the space it takes

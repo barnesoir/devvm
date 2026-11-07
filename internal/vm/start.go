@@ -114,10 +114,37 @@ func (s starter) bringUp(ctx context.Context, t *target, o upOpts) (backend.Conf
 	if err := s.Proxy.SelfCheck(ctx, b, st, start); err != nil {
 		return conf, err
 	}
+	s.remindLearning(st, o.made)
 	// devvm's connections to it carry the agent it runs with.
 	t.agent = conf.AgentSocket
 	return conf, nil
 }
+
+// remindLearning says, for a VM that learns the hosts it reaches, since
+// when, how many it found that its allowlist doesn't allow, and the
+// command that locks it to them; without the count when its log can't be
+// read. A VM just made says it learns from now on.
+func (s starter) remindLearning(st *state.VM, made bool) {
+	lr := netpolicy.LearningOf(st)
+	if !lr.On() {
+		return
+	}
+	vm, since := st.Name(), learnedSince(lr)
+	if made {
+		s.Info(msg.NetLearnStarted(vm))
+		return
+	}
+	hosts, err := s.Proxy.Learned(st)
+	if err != nil {
+		s.Note(msg.NetLearningSince(since, vm))
+		return
+	}
+	s.Note(msg.NetLearning(len(hosts.Hosts), since, vm))
+}
+
+// learnedSince is when a VM started learning, as devvm says it: this
+// machine's time, to the minute.
+func learnedSince(lr netpolicy.Learning) string { return lr.Since.Local().Format("2006-01-02 15:04") }
 
 // instance sets t's VM as bringUp starts from it (t.in): its backend's
 // answer, read again, as a remake or another devvm may have changed it

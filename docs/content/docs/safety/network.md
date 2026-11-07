@@ -32,7 +32,7 @@ A VM is on one of four tiers, from the lowest to the highest:
 | `allowlist` | only the hosts its [allowlists](#allowlists) allow, apart from your denies | yes |
 | `none` | only its agents' hosts, the hosts of its secrets and logins, and its [links](#links-between-vms), apart from your denies | yes |
 
-`--network TIER` chooses a new VM's tier, and `devvm network` with a tier changes an existing VM's, such as `devvm network internet` ([choosing a tier](#choosing-a-tier)). A higher tier is stricter, and a VM on any tier but open is confined: it reaches nothing but its proxy, and a direct connection from it fails.
+`--network TIER` chooses a new VM's tier, and `devvm network` with a tier changes an existing VM's, such as `devvm network internet` ([choosing a tier](#choosing-a-tier)). A higher tier is stricter, and a VM on any tier but open is confined: it reaches nothing but its proxy, and a direct connection from it fails. A VM can also start on the internet tier while it [learns the hosts it needs](#learning-the-hosts-a-vm-needs), and then go to the allowlist tier with the ones you choose.
 
 An open VM runs on its backend's own network, so it reaches this machine and your LAN directly, as a VM without a proxy would. Its environment names its proxy all the same (`HTTP_PROXY`, `HTTPS_PROXY` and their lowercase forms), and the proxy reaches every host and address for it, this machine's `localhost` and your LAN included, so a tool behaves the same through the proxy as it does directly. Its `NO_PROXY` names the VM itself and this machine as the VM reaches it, `host.lima.internal`, so requests to those go directly. Every launch checks that an open VM's proxy is set in the VM and answers it, and when it doesn't, devvm warns you and opens the VM all the same. An open VM gets a placeholder for each secret it may use, as every VM does, and only its proxy puts the real value in. So a request that goes around the proxy, directly from the VM, carries only the placeholder, and the secret's host refuses it.
 
@@ -42,33 +42,105 @@ Changing a VM from one confined tier to another applies at once, because the VM'
 
 ## Choosing a tier
 
-A new VM gets the allowlist tier unless you choose another, and the summary devvm shows before it makes the VM names its tier. When you customize the VM in a terminal, devvm lists the four tiers, each with what it reaches, and the tier the summary showed is chosen ([what a new VM gets](../using/images.md#what-a-new-vm-gets)):
+A new VM gets the allowlist tier unless you choose another, and the summary devvm shows before it makes the VM names its tier. When you customize the VM in a terminal, devvm lists the four tiers, each with what it reaches, with `learn` after `internet`, and the tier the summary showed is chosen ([what a new VM gets](../using/images.md#what-a-new-vm-gets)):
 
 ```text
 Network tier for devvm-some-project-71a99b1076d92c (up/down to choose, enter to confirm):
   ( ) open       reaches anything this machine can
   ( ) internet   reaches any public host
+  ( ) learn      reaches any public host while it learns which it needs, until devvm network lock
 > (*) allowlist  reaches only the hosts you allow (recommended)
   ( ) none       reaches only its agents' and secrets' hosts and its links
 ```
 
-Up and down move the choice, and enter gives the VM the chosen tier, so pressing enter at once keeps the tier the summary showed. `--network TIER` answers the question up front, such as `devvm --network internet`, and when there's no terminal to ask in, or you give `--no-input`, the VM gets the tier the summary showed. A VM keeps its tier. On an existing VM devvm ignores `--network` and warns you, naming the `devvm network` command that changes the tier.
+Up and down move the choice, and enter gives the VM the chosen tier, so pressing enter at once keeps the tier the summary showed. `learn` gives the VM the internet tier while it [learns the hosts it needs](#learning-the-hosts-a-vm-needs). `--network TIER` answers the question up front, such as `devvm --network internet` or `devvm --network learn`, and when there's no terminal to ask in, or you give `--no-input`, the VM gets the tier the summary showed. A VM keeps its tier. On an existing VM devvm ignores `--network` and warns you, naming the `devvm network` command that changes the tier.
 
-To give every new VM another tier, save it with `devvm network -g`, such as `devvm network -g none`, or choose it in [devvm setup](../using/settings.md#devvm-setup). Each new VM's summary then shows that tier, and customizing the VM still asks, with Enter keeping the saved tier. `devvm network -g` shows what new VMs get, `allowlist` until you save another tier, followed by where it came from after a `#`, and `devvm network -g --json` prints it as `policy`, with `source`. devvm reads the saved tier only when it creates a VM, so the VMs you already have keep their own tier, and `--network` still chooses for one new VM. You can also set it with `network` in [`config.toml`](../using/settings.md#configtoml), which wins over the saved tier, and then `devvm network -g` refuses to change it and names the file ([where a default comes from](../using/settings.md#where-a-default-comes-from)).
+To give every new VM another tier, save it with `devvm network -g`, such as `devvm network -g none`, or choose it in [devvm setup](../using/settings.md#devvm-setup). Both also take `learn`, so that every new VM learns the hosts it needs until you lock it. Each new VM's summary then shows that tier, and customizing the VM still asks, with Enter keeping the saved tier. `devvm network -g` shows what new VMs get, `allowlist` until you save another tier, followed by where it came from after a `#`, and `devvm network -g --json` prints it as `policy`, with `source`. devvm reads the saved tier only when it creates a VM, so the VMs you already have keep their own tier, and `--network` still chooses for one new VM. You can also set it with `network` in [`config.toml`](../using/settings.md#configtoml), which wins over the saved tier, and then `devvm network -g` refuses to change it and names the file ([where a default comes from](../using/settings.md#where-a-default-comes-from)).
 
 Lima confines every VM to its proxy, so every VM can be on any tier, the docker layer's included. devvm never starts a VM on a confined tier with an open network, so if a VM's backend couldn't confine it, the VM could only be open: devvm would refuse to make it on any other tier unless you give `--network open`, and it would refuse to give it any other tier with `devvm network` ([when a backend lacks something](../backends/_index.md#when-a-backend-lacks-something)).
 
 | | |
 | --- | --- |
-| `devvm network` | print this folder's VM's tier as `devvm ls` shows it, `open`, `internet`, `allowlist`, `none` or `unenforced`, and then its [allowlist](#changing-rules) |
+| `devvm network` | print this folder's VM's tier as `devvm ls` shows it, `open`, `internet`, `internet (learning)`, `allowlist`, `none` or `unenforced`, and then its [allowlist](#changing-rules) |
 | `devvm network open\|internet\|allowlist\|none` | change it: between confined tiers at once, and into or out of open from the VM's next start, which `devvm restart` gives you, and for a running VM, ask in a terminal whether to restart it now |
-| `devvm network -g [open\|internet\|allowlist\|none]` | show or change what new VMs get |
+| `devvm network learn` | give it the internet tier while it [learns the hosts it needs](#learning-the-hosts-a-vm-needs), from now on |
+| `devvm network lock` | choose which of those hosts it keeps, and give it the allowlist tier ([locking it](#locking-it)) |
+| `devvm network -g [open\|internet\|learn\|allowlist\|none]` | show or change what new VMs get |
 
 When a change into or out of open finds the VM running, devvm asks in a terminal whether to restart it now, which stops anything running in it, and if you answer yes, it restarts the VM as `devvm restart` does, so the change applies at once. If you answer no, or there's no terminal, or you pass `--no-input`, the change waits until the VM starts again. If you give a running open VM a confined tier, the VM isn't confined yet, so `devvm ls` shows it as `unenforced`, and its next launch offers to restart it confined, as it does for a VM started outside devvm. If you make a VM open while it runs confined, its launches keep it confined to its proxy, which now applies an open VM's rules, until it next starts, and they warn you that the VM leaves its proxy's confinement when it next starts. In a terminal, each of those launches first asks whether to restart the VM now, with no as the default unless an agent's new folders wait too ([restarting](../using/vms.md#restarting-and-stopping)).
 
 ### When it isn't enforced
 
 On every launch devvm checks on this machine that the VM still runs on the process devvm started confined, and that a direct connection from the VM to the internet fails. A VM that fails either check shows as `unenforced`, and devvm offers to restart it confined or stops it, as [the self-check](../internals/network.md#the-self-check) describes.
+
+## Learning the hosts a VM needs
+
+Finding every host a project needs one block at a time takes a while, so a VM can learn them instead. It starts with the internet tier's access, and its proxy logs each host it reaches, as it does on every tier. Once you've run the project's installs, builds and tests, `devvm network lock` lets you choose which of those hosts the VM keeps, and puts it on the allowlist tier with them.
+
+To make a new VM learn, choose `learn` in its tier list when you customize it, or give `--network learn`, such as `devvm --network learn`. To make an existing VM learn, run `devvm network learn`, which gives it the internet tier at once, as `devvm network internet` does, and starts its learning from now. `devvm network -g learn`, or choosing `learn` in `devvm setup`, makes every new VM learn ([choosing a tier](#choosing-a-tier)).
+
+Learning isn't a tier of its own. While it lasts, the VM is on the internet tier, so it reaches every public host and only your denies apply, and links and groups treat it as an internet VM. That's internet access for as long as the VM learns, so a compromised dependency that you install meanwhile can reach a host of its attacker's choosing, and that host then shows up among the learned hosts. So `devvm network lock` asks, and you read the list before you confirm it. Your secrets stay on this machine as they do on every tier, and the VM still gets only placeholders.
+
+Each launch of a learning VM says that it's learning, since when, and how many hosts it has reached beyond its allowlist, and it names `devvm network lock`. `devvm ls` and `devvm network` show its tier as `internet (learning)`, and their `--json` adds `learning_since`, the time it started learning.
+
+`devvm network internet`, `none` or `open` end the learning and give the VM that tier. `devvm network allowlist` refuses while the VM learns, because `devvm network lock` is how a learning VM goes to the allowlist tier, and `devvm network lock --none` does it without adding a host. A VM in a [group](#links-between-vms) can't start learning or be locked, because a group's VMs are all on one tier, so run `devvm group leave` first.
+
+### Locking it
+
+`devvm network lock` reads the hosts the VM reached since it started learning from its network log. It leaves out what the VM's allowlist tier would allow already, judged by the proxy's own rules: devvm's built-in rules, its shared tools' and layers', your own rules for every VM and for this VM, and its secrets' and logins' hosts. It also leaves out blocked requests, and internal and LAN addresses, which the internet tier never reaches. In a terminal it lists the rest, one row for each host and port, with how many connections each had and the tool that made them most, as the requests' `User-Agent` names it:
+
+```text
+Since 2026-11-07 10:00 the VM could reach any public host, so this list can hold a host that a compromised dependency reached. Read each one, because devvm allows only those ticked, and addresses, paste sites and file storage start unticked.
+Choose the hosts devvm-some-project-71a99b1076d92c keeps. Use up and down to move, space to toggle and enter to confirm.
+> [x] files.pythonhosted.org  48 connections, by uv/0.9.2
+  [x] registry.example.com    12 connections, by npm/11.6.2
+  [x] example.com:8443        2 connections
+  [ ] 203.0.113.5             1 connection, unticked because it can send data out
+  [ ] pastebin.com            3 connections, by curl/8.5.0, unticked because it can send data out
+```
+
+Every host starts ticked, apart from those that are easy ways to send data out: an address rather than a host name, a paste site such as pastebin.com, and file storage or file sharing such as transfer.sh, Dropbox or an S3 bucket, which devvm's own rules leave out too. Tick one of those only when the project needs it. Space ticks or unticks the row under the cursor, and Enter adds the ticked hosts to the VM's own policy file, each as an exact host and port, such as `registry.example.com` or `example.com:8443`, never as a `*.` wildcard. Then devvm gives the VM the allowlist tier at once, as it does between confined tiers, so a running VM keeps running, and its learning ends. Later, `devvm network allow`, `deny` and `rm` change those rules as they change any other ([changing rules](#changing-rules)).
+
+| | |
+| --- | --- |
+| `devvm network lock` | list the hosts the VM learned, so you choose which it keeps, then give it the allowlist tier |
+| `--all` | keep every host it learned, the unticked ones too, without asking |
+| `--none` | keep none of them, without asking |
+| `--json` | list the hosts it learned, and change nothing |
+
+Without a terminal, or with `--no-input`, `devvm network lock` refuses and names `--all` and `--none`. When the VM reached no host beyond its allowlist, it locks at once without asking. A VM that isn't learning has nothing to lock, so `devvm network lock` refuses and names `devvm network learn`. While the VM links to a target on a lower tier than allowlist, `devvm network lock` refuses as `devvm network allowlist` would ([links between VMs](#links-between-vms)).
+
+The proxy keeps each VM's log to its last 10 to 20 MiB ([logs](#logs)), so a VM that learns for a long time with a lot of traffic can lose the first hosts it reached. When the log no longer goes back to the time the VM started learning, `devvm network lock` warns you, and its `--json` sets `partial`. A host that's missing then is blocked once the VM is locked, and `devvm network log --blocked` names the `devvm network allow` command that allows it.
+
+#### devvm network lock --json
+
+`devvm network lock --json` prints what the VM learned as one JSON object, as [output for scripts](../using/command-line.md#output-for-scripts) describes, and changes nothing, so devvm refuses it with `--all` or `--none`. `learning_since` is when the VM started learning, `partial` is `true` when the log no longer goes back that far, and each of the `hosts` has the `rule` that `devvm network lock` adds for it, its `host` and `port`, the `count` of its connections, the `last` time the VM reached it, the tool that reached it most as `agent`, and, for a host that starts unticked, its `risk`: `address`, `paste` or `storage`. The hosts come in the list's order, the risky ones last.
+
+```json
+{
+  "version": 1,
+  "learning_since": "2026-11-07T10:00:00Z",
+  "hosts": [
+    {
+      "rule": "registry.example.com",
+      "host": "registry.example.com",
+      "port": 443,
+      "count": 12,
+      "last": "2026-11-07T10:20:00Z",
+      "agent": "npm/11.6.2"
+    },
+    {
+      "rule": "pastebin.com",
+      "host": "pastebin.com",
+      "port": 443,
+      "count": 3,
+      "last": "2026-11-07T10:21:00Z",
+      "agent": "curl/8.5.0",
+      "risk": "paste"
+    }
+  ]
+}
+```
 
 ## Allowlists
 
@@ -133,7 +205,7 @@ If a VM was deleted outside devvm, devvm deletes what it kept for that VM when i
 
 ### devvm network --json
 
-`devvm network --json` prints the VM's tier and its allowlist as one JSON object, as [output for scripts](../using/command-line.md#output-for-scripts) describes. `policy` is `open`, `internet`, `allowlist`, `none` or `unenforced`, and `allowlist` has each policy that holds more than comments, in the order the proxy reads them. Each has `builtin`, a built-in policy's name, or `file`, the path of one of your files, then its rules and, in `not_rules`, each line that isn't a rule, with its `line` number and its `text`. On the internet and none tiers, a file whose denies alone apply also has `denies_only` set to `true`, and its `rules` are its denies, as `devvm network` lists them under `(denies only)`. Without `denies_only`, a file's `rules` are all of its rules. With `-g`, the object has only `policy`, which is the tier new VMs get, and `source`, which says where it came from: `config.toml`, `settings.json` for what `devvm network -g` or `devvm setup` saved, or `built-in` ([where a default comes from](../using/settings.md#where-a-default-comes-from)). With `--json` the command only shows, so devvm refuses a tier with it.
+`devvm network --json` prints the VM's tier and its allowlist as one JSON object, as [output for scripts](../using/command-line.md#output-for-scripts) describes. `policy` is `open`, `internet`, `allowlist`, `none` or `unenforced`, a learning VM also has `learning_since`, the time it started [learning](#learning-the-hosts-a-vm-needs), and `allowlist` has each policy that holds more than comments, in the order the proxy reads them. Each has `builtin`, a built-in policy's name, or `file`, the path of one of your files, then its rules and, in `not_rules`, each line that isn't a rule, with its `line` number and its `text`. On the internet and none tiers, a file whose denies alone apply also has `denies_only` set to `true`, and its `rules` are its denies, as `devvm network` lists them under `(denies only)`. Without `denies_only`, a file's `rules` are all of its rules. With `-g`, the object has only `policy`, which is the tier new VMs get, and `source`, which says where it came from: `config.toml`, `settings.json` for what `devvm network -g` or `devvm setup` saved, or `built-in` ([where a default comes from](../using/settings.md#where-a-default-comes-from)). With `--json` the command only shows, so devvm refuses a tier with it.
 
 ```json
 {

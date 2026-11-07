@@ -41,7 +41,7 @@ func addUpFlags(root *cobra.Command, a *app, uf *upFlags) {
 	addAgentsFlag(f, &uf.agents, "the `LIST` of coding agents a new VM gets, such as claude,codex, or none (default: devvm setup's)")
 	addLayersFlag(f, &uf.layers, "the `LIST` of layers a new VM's image gets, bottom first, such as docker,mine, or none (default: devvm setup's)")
 	addFromFlag(f, &uf.from)
-	f.StringVar(&uf.network, "network", "", "the network `TIER` a new VM gets: open, internet, allowlist or none (default: devvm network -g's, else allowlist)")
+	f.StringVar(&uf.network, "network", "", "the network `TIER` a new VM gets: open, internet, allowlist or none, or learn for internet while it learns the hosts it needs (default: devvm network -g's, else allowlist)")
 	f.StringVar(&uf.size.CPUs, "cpus", "", "the `N` CPUs the VM gets (default: devvm size -g, else the image's)")
 	f.StringVar(&uf.size.Memory, "memory", "", "the VM's memory in `GiB`, such as 16 or 16G (default: devvm size -g, else the image's)")
 	f.StringVar(&uf.size.Disk, "disk", "", "the VM's disk in `GiB`, at least the image's (default: devvm size -g, else the image's)")
@@ -58,9 +58,13 @@ func addUpFlags(root *cobra.Command, a *app, uf *upFlags) {
 
 // options are what the flags ask of up.
 func (uf *upFlags) options() vm.Options {
+	tier, learn, _ := netpolicy.Choice(uf.network)
+	if uf.network == "" {
+		tier = ""
+	}
 	return vm.Options{
 		Toolchains: partFlag(uf.tools), Agents: partFlag(uf.agents), Layers: partFlag(uf.layers),
-		Network: netpolicy.Tier(uf.network), Size: uf.size, Ports: uf.ports,
+		Network: tier, Learn: learn, Size: uf.size, Ports: uf.ports,
 		From: fromRef(uf.from), FromSet: uf.from != "",
 		UnsafeFolder: uf.unsafeFolder, NoGitProtect: uf.noGitProtect, Clone: uf.clone, SSHAgent: uf.sshAgent,
 		NoDevcontainer: uf.noDevcontainer,

@@ -54,12 +54,15 @@ type vmJSON struct {
 	Status string `json:"status"`
 	Image  string `json:"image"`
 	// Tools is its shared tools: node, claude.
-	Tools   []string `json:"tools"`
-	From    string   `json:"from,omitempty"`
-	Git     string   `json:"git"`
-	Net     string   `json:"net"`
-	Backend string   `json:"backend"`
-	Folder  string   `json:"folder"`
+	Tools []string `json:"tools"`
+	From  string   `json:"from,omitempty"`
+	Git   string   `json:"git"`
+	Net   string   `json:"net"`
+	// LearningSince is since when it learns the hosts it reaches, on the
+	// internet tier, when it does.
+	LearningSince string `json:"learning_since,omitempty"`
+	Backend       string `json:"backend"`
+	Folder        string `json:"folder"`
 	// FolderState is what's at Folder's path: there, gone, or
 	// not_connected (vm.FolderState); devvm rm VM deletes a VM whose
 	// folder is gone or not connected.
@@ -73,7 +76,7 @@ func lsJSON(ls []vm.Listed) lsOutput {
 	for _, l := range ls {
 		out.VMs = append(out.VMs, vmJSON{
 			Name: l.Name, Status: l.Status, Image: l.Image, Tools: append([]string{}, l.Tools...), From: l.From, Git: l.Git, Net: l.Net,
-			Backend: l.Backend, Folder: l.Folder, FolderState: string(l.FolderState), Links: l.Links,
+			LearningSince: jsonTime(l.Learning), Backend: l.Backend, Folder: l.Folder, FolderState: string(l.FolderState), Links: l.Links,
 		})
 	}
 	return out
@@ -128,8 +131,12 @@ func writeList(tab *ui.Table, ls []vm.Listed) error {
 			folder = ui.Cell{Text: l.Folder + " (not connected)", Role: ui.Attention}
 		case vm.FolderThere:
 		}
+		net := cellAs(l.Net, netModes)
+		if shown := netpolicy.Shown(l.Net, !l.Learning.IsZero()); shown != l.Net {
+			net = ui.Cell{Text: shown, Role: ui.Attention}
+		}
 		tab.Row(cell(l.Name), cellAs(l.Status, vmStatuses), cell(image), cell(strings.Join(l.Tools, ",")), cellAs(l.Git, gitModes),
-			cellAs(l.Net, netModes), cell(links), folder)
+			net, cell(links), folder)
 	}
 	return tab.Flush()
 }

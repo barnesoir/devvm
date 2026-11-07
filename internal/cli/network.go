@@ -14,23 +14,25 @@ import (
 	"github.com/devvmhq/devvm/internal/vm"
 )
 
-// newNetworkCmd is devvm network [open|internet|allowlist|none], with -g
-// for what new VMs get, and allow, deny, rm RULE... [-g] and log.
+// newNetworkCmd is devvm network [open|internet|learn|allowlist|none],
+// with -g for what new VMs get, and allow, deny, rm RULE... [-g], log and
+// lock.
 func newNetworkCmd(a *app) *cobra.Command {
 	u := a.u
 	var global, asJSON bool
-	choices := netpolicy.TierNames
+	choices := netpolicy.Choices
 	cmd := &cobra.Command{
-		Use:   "network [open|internet|allowlist|none]",
+		Use:   "network [open|internet|learn|allowlist|none]",
 		Short: "Show or change the network tier of this folder's VM",
 		Long: "Show the network tier of this folder's VM, which is open, internet, allowlist, none or unenforced, and then its allowlist, policy by policy: devvm's built-in ones by name, then your files by path. " +
-			"With a tier, give the VM that tier: between the confined tiers at once, and into or out of open from the VM's next start, so in a terminal devvm offers to restart a running VM now. " +
+			"With a tier, give the VM that tier: between the confined tiers at once, and into or out of open from the VM's next start, so in a terminal devvm offers to restart a running VM now, and learn gives it the internet tier while it learns the hosts it reaches, until devvm network lock. " +
 			"With -g, show or change the tier new VMs get, allowlist unless you change it.",
 		Example: examples(
 			"devvm network", "show the VM's network tier and allowlist",
 			"devvm network allow example.com", "let the VM reach example.com",
 			"devvm network log --blocked", "list what the VM's proxy blocked",
-			"devvm network internet", "let the VM reach any public host",
+			"devvm network learn", "let the VM reach any public host while it learns the ones it needs",
+			"devvm network lock", "choose which of them it keeps, and put it on the allowlist tier",
 			"devvm network -g none", "give every new VM the none tier",
 		),
 		Args: showsOnly(func(cmd *cobra.Command, args []string) error {
@@ -69,6 +71,8 @@ func newNetworkCmd(a *app) *cobra.Command {
 					err = n.SetNetworkDefault(args[0])
 				case len(args) == 0:
 					shown, err = n.Network(cmd.Context())
+				case args[0] == netpolicy.Learn:
+					err = n.Learn(cmd.Context(), "devvm network "+args[0])
 				default:
 					err = n.SetTier(cmd.Context(), netpolicy.Tier(args[0]), "devvm network "+args[0])
 				}
@@ -86,16 +90,17 @@ func newNetworkCmd(a *app) *cobra.Command {
 	cmd.Flags().BoolVarP(&global, "global", "g", false, "show or change new VMs' network tier instead")
 	jsonFlag(cmd, &asJSON)
 	cmd.AddCommand(newNetworkRuleCmds(a)...)
-	cmd.AddCommand(newNetworkLogCmd(a))
+	cmd.AddCommand(newNetworkLogCmd(a), newNetworkLockCmd(a))
 	return addFolderFlags(cmd, a)
 }
 
-// networkOutput is devvm network --json: the VM's tier (or unenforced)
-// and its allowlist, each policy with rules in the order its proxy reads
-// them.
+// networkOutput is devvm network --json: the VM's tier (or unenforced),
+// since when it learns the hosts it reaches when it does, and its
+// allowlist, each policy with rules in the order its proxy reads them.
 type networkOutput struct {
-	Policy    string           `json:"policy"`
-	Allowlist []policyFileJSON `json:"allowlist"`
+	Policy        string           `json:"policy"`
+	LearningSince string           `json:"learning_since,omitempty"`
+	Allowlist     []policyFileJSON `json:"allowlist"`
 }
 
 // policyFileJSON is a policy: a built-in one, by its name in devvm's
@@ -122,12 +127,12 @@ type notRuleJSON struct {
 // or with asJSON as networkOutput.
 func printNetwork(u *ui.UI, asJSON bool, s vm.NetworkShown) error {
 	if !asJSON {
-		if _, err := io.WriteString(u.Stdout(), s.Policy+"\n"); err != nil {
+		if _, err := io.WriteString(u.Stdout(), netpolicy.Shown(s.Policy, !s.Learning.IsZero())+"\n"); err != nil {
 			return err
 		}
 		return netpolicy.WriteRules(u.Stdout(), s.Rules)
 	}
-	out := networkOutput{Policy: s.Policy, Allowlist: []policyFileJSON{}}
+	out := networkOutput{Policy: s.Policy, LearningSince: jsonTime(s.Learning), Allowlist: []policyFileJSON{}}
 	for _, f := range s.Rules {
 		j := policyFileJSON{DeniesOnly: f.DeniesOnly, Rules: append([]string{}, f.Rules()...), NotRules: []notRuleJSON{}}
 		if f.Builtin {
@@ -305,4 +310,83 @@ func printLogJSON(cmd *cobra.Command, a *app, o vm.LogOptions) error {
 		})
 	}
 	return printJSON(u, out)
+}
+
+// newNetworkLockCmd is devvm network lock [--all] [--none] [--json].
+func newNetworkLockCmd(a *app) *cobra.Command {
+	var o vm.LockOptions
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:   "lock",
+		Short: "Lock this folder's VM to the hosts it learned, on the allowlist tier",
+		Long: "For this folder's VM, which learns the hosts it reaches, choose in a list which of the hosts it reached beyond its allowlist to add to its own rules, then give it the allowlist tier at once. " +
+			"Every host starts ticked but addresses, paste sites and file storage, so read the list before you confirm it. " +
+			"Without a terminal, --all adds every host and --none adds none, and --json lists the hosts and changes nothing.",
+		Example: examples(
+			"devvm network lock", "choose the hosts the VM keeps, then lock it to them",
+			"devvm network lock --json", "list the hosts it learned, changing nothing",
+			"devvm network lock --all", "keep every host it learned, without asking",
+		),
+		Args: noArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if asJSON {
+				return printLockJSON(cmd, a)
+			}
+			return a.env(func(env *vm.Env) error { return vm.Net{Env: env}.Lock(cmd.Context(), o) }, msg.NetworkFailed)
+		},
+	}
+	f := cmd.Flags()
+	f.BoolVar(&o.All, "all", false, "add every host the VM learned, without asking")
+	f.BoolVar(&o.None, "none", false, "add none of the hosts the VM learned, without asking")
+	jsonFlag(cmd, &asJSON)
+	exclusive(cmd, "all", "none")
+	exclusive(cmd, "json", "all")
+	exclusive(cmd, "json", "none")
+	return addFolderFlags(cmd, a)
+}
+
+// lockOutput is devvm network lock --json: since when the folder's VM
+// learns, whether its log lost hosts since, and the hosts it reached that
+// its allowlist doesn't allow, the unrisky first, each by its rule.
+type lockOutput struct {
+	LearningSince string        `json:"learning_since"`
+	Partial       bool          `json:"partial,omitempty"`
+	Hosts         []learnedJSON `json:"hosts"`
+}
+
+// learnedJSON is a host a VM learned: the rule devvm network allow takes
+// for it, its host and port, how many connections it had, when it was
+// last reached, the tool that reached it most, and why it's risky
+// (address, paste or storage), if it is.
+type learnedJSON struct {
+	Rule  string `json:"rule"`
+	Host  string `json:"host"`
+	Port  int    `json:"port"`
+	Count int    `json:"count"`
+	Last  string `json:"last"`
+	Agent string `json:"agent,omitempty"`
+	Risk  string `json:"risk,omitempty"`
+}
+
+// printLockJSON writes what the folder's VM learned as lockOutput.
+func printLockJSON(cmd *cobra.Command, a *app) error {
+	var l netpolicy.LearnedHosts
+	if err := a.env(func(env *vm.Env) error {
+		var err error
+		l, err = vm.Net{Env: env}.Learned(cmd.Context())
+		return err
+	}, msg.NetworkFailed); err != nil {
+		return err
+	}
+	return printJSON(a.u, lockJSON(l))
+}
+
+func lockJSON(l netpolicy.LearnedHosts) lockOutput {
+	out := lockOutput{LearningSince: jsonTime(l.Since), Partial: l.Partial, Hosts: make([]learnedJSON, 0, len(l.Hosts))}
+	for _, h := range l.Hosts {
+		out.Hosts = append(out.Hosts, learnedJSON{
+			Rule: h.Rule, Host: h.Host, Port: h.Port, Count: h.Count, Last: h.Last, Agent: h.Agent, Risk: string(h.Risk),
+		})
+	}
+	return out
 }

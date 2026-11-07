@@ -246,8 +246,8 @@ func checkFlagValue(name, value string) error {
 	case "ports":
 		_, err = settings.ParsePorts(value)
 	case "network":
-		if !netpolicy.Tier(value).Valid() {
-			err = msg.ArgNotChoice(strings.Join(netpolicy.TierNames(), ", "), "--network", value)
+		if _, _, ok := netpolicy.Choice(value); !ok {
+			err = msg.ArgNotChoice(strings.Join(netpolicy.Choices(), ", "), "--network", value)
 		}
 	case "lifetime":
 		if value != "" {

@@ -63,7 +63,14 @@ func withNet(on bool) func(*state.VM) error {
 
 // withTier gives a VM a tier.
 func withTier(t netpolicy.Tier) func(*state.VM) error {
-	return func(st *state.VM) error { return netpolicy.SetTier(st, t) }
+	return func(st *state.VM) error { return netpolicy.SetTier(st, t, netpolicy.Learning{}) }
+}
+
+// withLearning makes a VM learn, on the internet tier, since since.
+func withLearning(since time.Time) func(*state.VM) error {
+	return func(st *state.VM) error {
+		return netpolicy.SetTier(st, netpolicy.TierInternet, netpolicy.Learning{Since: since})
+	}
 }
 
 // withPublish has a VM publish ports (linksInVM.Publish).

@@ -19,7 +19,7 @@ devvm: one isolated VM per project folder, cloned from a base image, with toolch
 | `internal/redact/` | passwords out of logs (stdlib): `String` (the run log's lines: proxy keys, URL passwords), `File` (another program's log, in place, its length kept) |
 | `internal/devcontainer/`, `internal/jsonc/` | a project's devcontainer.json (pure): finding it, mapping it to a new VM's plan, refusals, what devvm update's reading again replaces (`Reread`); JSON with comments (`jsonc.Strip`, stdlib) |
 | `internal/tools/` | the shared tools: the lock, host mise, the daily check, tool image builds, the share |
-| `internal/netpolicy/`, `internal/secrets/` | network policy (the choice, the VM's proxy, the self-check); tokens on the host and the VM's bindings |
+| `internal/netpolicy/`, `internal/secrets/` | network policy (the choice, learning: the hosts a VM reached, `RiskOf`, the VM's proxy, the self-check); tokens on the host and the VM's bindings |
 | `internal/trust/` | the user's CAs (`~/.config/devvm/ca`): read and checked, sent to VMs, build VMs' `Trust` scripts, the guest environment; each VM's own CA and its next (`InitCA`, in `vms/<hash>/run/ca/`) |
 | `internal/agentlogin/` | agents' login and settings files on the host: the VM's copies with placeholders, bindings, values and OAuth refresh (`File`), `Redact`, and `Restore`, which puts the store's values back for a VM's placeholders |
 | `internal/proxy/` | the proxy, run as `devvm _proxy`; see its `README.md` |

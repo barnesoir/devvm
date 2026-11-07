@@ -46,8 +46,9 @@ stdout '^size\.cpus=2$'
 ! stdout '^size\.memory'
 
 # y: the picker, whose Enter keeps what it shows checked, then the tier's
-# picker, the tiers in order with what each reaches, the summary's on (k
-# moves up to internet), then the ports' picker, every port on (j j moves
+# picker, the tiers in order with learn after internet, each with what it
+# reaches, the summary's on (k k moves up past learn to internet), then
+# the ports' picker, every port on (j j moves
 # down to a list), whose list, not a list at first, is asked again, and
 # the CPUs, memory and disk, each starting from the summary's; Enter
 # keeps the memory, a disk below the image's is refused and asked again,
@@ -58,7 +59,7 @@ ttyin -stdin $WORK/custom.txt
 exec devvm --no-git-protect
 stdout '^pick_new_help vm=devvm-custom-[0-9a-f]{14}\r$'
 stdout 'net_tier_help vm=devvm-custom-[0-9a-f]{14}\r$'
-stdout '(?s)open +net_tier_open.*internet +net_tier_internet.*allowlist +net_tier_allowlist.*none +net_tier_none'
+stdout '(?s)open +net_tier_open.*internet +net_tier_internet.*learn +net_choice_learn.*allowlist +net_tier_allowlist.*none +net_tier_none'
 stdout 'new_vm_ports_help vm=devvm-custom-[0-9a-f]{14}\r$'
 stdout '(?s)all +new_vm_ports_all.*none +new_vm_ports_none.*list +new_vm_ports_list'
 stderr 'new_vm_ports_prompt ports=all'
@@ -144,7 +145,7 @@ env DEVVM_MESSAGES=names
 -- custom.txt --
 y
 
-k
+kk
 jj
 5173-
 5173,8000-8010

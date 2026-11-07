@@ -104,7 +104,7 @@ func (l *Log) Events(n int) ([]Event, error) {
 	var last []Event
 	err := l.each(func(line string) {
 		var e Event
-		if json.Unmarshal([]byte(line), &e) != nil || e.Event == "" || n <= 0 {
+		if json.Unmarshal([]byte(line), &e) != nil || e.Event == "" || e.Event == learnEvent || n <= 0 {
 			return
 		}
 		if len(last) == n {
@@ -256,10 +256,11 @@ func readLines(r *bufio.Reader, read *int64, line func(string)) (string, error) 
 // the time, allowed or BLOCKED, the host and port, and the rule that
 // allowed it, the request, the tokens put in, or why it was blocked. The
 // VM chose the host and path: control characters are dropped. false for a
-// line that isn't an event.
+// line that isn't an event, and for devvm's mark of a VM starting to learn
+// (MarkLearning), which is no connection.
 func FormatEvent(line string) (string, bool) {
 	var e proxy.Event
-	if json.Unmarshal([]byte(line), &e) != nil || e.Event == "" {
+	if json.Unmarshal([]byte(line), &e) != nil || e.Event == "" || e.Event == learnEvent {
 		return "", false
 	}
 	what, d := "allowed", "rule "+e.Rule

@@ -352,13 +352,25 @@ func (h *hostAddrs) internal(a netip.Addr) bool {
 	if v4, ok := nat64IPv4(a); ok {
 		return h.internal(v4)
 	}
+	return !Public(a) || h.has(a)
+}
+
+// Public reports whether a is an address of the public internet: none of the ranges the floor
+// refuses (loopback, private, link-local, multicast and the rest of notPublic), a NAT64 address
+// judged by the IPv4 address in it. This machine's own public addresses are the floor's too
+// (hostAddrs), which Public doesn't know. devvm network lock leaves out what isn't.
+func Public(a netip.Addr) bool {
+	a = a.Unmap()
+	if v4, ok := nat64IPv4(a); ok {
+		a = v4
+	}
 	for _, p := range notPublic {
 		if p.Contains(a) {
-			return true
+			return false
 		}
 	}
-	return a.IsLoopback() || a.IsPrivate() || a.IsLinkLocalUnicast() || a.IsLinkLocalMulticast() ||
-		a.IsMulticast() || a.IsUnspecified() || a.IsInterfaceLocalMulticast() || h.has(a)
+	return !a.IsLoopback() && !a.IsPrivate() && !a.IsLinkLocalUnicast() && !a.IsLinkLocalMulticast() &&
+		!a.IsMulticast() && !a.IsUnspecified() && !a.IsInterfaceLocalMulticast()
 }
 
 // egress decides where a connection may go, and makes it: the policy, the floor of internal
@@ -564,7 +576,7 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	if s.links.refuse(w, "CONNECT", host, port) {
 		return
 	}
-	e := Event{Host: host, Port: port, Method: "CONNECT"}
+	e := Event{Host: host, Port: port, Method: "CONNECT", Agent: r.UserAgent()}
 	rule, why, refused := s.egress.checkRefused(r.Context(), host, port, false)
 	if why != "" {
 		e.Reason, e.Refused = why, refused

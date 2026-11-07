@@ -1,6 +1,6 @@
 ---
 title: devvm tools update
-weight: 62
+weight: 63
 ---
 
 Move this folder's VM to the newest shared tools, then open a shell in it

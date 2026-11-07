@@ -3,6 +3,7 @@ package proxy
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -351,6 +352,32 @@ func (p *policy) verdict(host string, port int) (bool, string, bool) {
 		}
 	}
 	return false, "not on the allowlist", false
+}
+
+// Allowlist is a set of policies as a VM's proxy reads them, read once: what devvm network lock
+// judges the hosts a learning VM reached with, so it leaves out what the VM's allowlist tier
+// already allows, by the proxy's own rules.
+type Allowlist struct{ p *policy }
+
+// ReadAllowlist reads builtin, paths in devvm's own files own, then files, whose every rule
+// applies, and denies, whose denies alone apply, as Config's BuiltinPolicies, Policies and
+// DenyPolicies have them. A built-in policy that's missing or holds a line that isn't a rule is
+// an error, as it is for the proxy.
+func ReadAllowlist(own fs.FS, builtin, files, denies []string) (Allowlist, error) {
+	l := log.New(io.Discard, "", 0)
+	rs, err := readBuiltins(own, builtin, l)
+	if err != nil {
+		return Allowlist{}, err
+	}
+	return Allowlist{newPolicy(rs, files, denies, l)}, nil
+}
+
+// Allows reports whether the policies allow host:port, as the proxy decides it by its rules,
+// before the floor of internal addresses: a deny beats any allow, and while a file has a broken
+// deny nothing is allowed.
+func (p Allowlist) Allows(host string, port int) bool {
+	ok, _, _ := p.p.verdict(host, port)
+	return ok
 }
 
 // byName: an allow rule that names host, as itself or under *.domain, for port: one that's more

@@ -33,6 +33,7 @@ type Options struct {
 	// for the part's default.
 	Toolchains, Agents, Layers *[]string
 	Network                    netpolicy.Tier // --network: a new VM's tier, "" for its default
+	Learn                      bool           // --network learn: Network is internet, and the VM learns the hosts it reaches
 	Size                       Size           // --cpus, --memory, --disk as given
 	Ports                      string         // --ports as given
 	UnsafeFolder               bool           // --unsafe-folder
@@ -175,6 +176,7 @@ type newVM struct {
 	size  Size
 	ports string
 	net   netpolicy.Tier
+	learn bool   // it learns the hosts it reaches, on the internet tier
 	agent string // sshagent.On or Off
 	clone bool   // --clone
 	git   string // its .git protection (gitprotect.Protector.NewMode), or gitprotect.Clone
@@ -279,6 +281,9 @@ func (e creation) create(ctx context.Context, o Options, f project.Folder, b bac
 	})
 	if err != nil {
 		return err
+	}
+	if n.learn {
+		e.markLearning(vm)
 	}
 	if err := e.makeMachine(ctx, b, st, chain.Key(), n.spec); err != nil {
 		return err
@@ -501,12 +506,23 @@ func newPorts(given string, def settings.Defaults, dc *devcontainer.Plan) (list 
 func (e creation) chooseNet(o Options, b backend.Backend, vm, saved string) (netpolicy.Tier, error) {
 	tier := o.Network
 	if tier == "" {
-		tier = netpolicy.Tier(saved)
+		tier, _, _ = netpolicy.Choice(saved)
 	}
 	if tier != netpolicy.TierOpen && !e.Registry.Allowed(b, backend.FeatureEgressProxy) {
 		return "", msg.NetTierBackend(b.Name(), vm)
 	}
 	return tier, nil
+}
+
+// learns reports whether a new VM learns the hosts it reaches, on the
+// internet tier: --network learn, else without --network the default's
+// choice (saved, as chooseNet reads it).
+func learns(o Options, saved string) bool {
+	if o.Network != "" {
+		return o.Learn
+	}
+	_, learn, _ := netpolicy.Choice(saved)
+	return learn
 }
 
 // choose works out a new VM's parts, as its flags and defaults have them
@@ -525,9 +541,10 @@ func (e creation) choose(o Options, f project.Folder, b backend.Backend, def set
 	if n.net, err = e.chooseNet(o, b, vm, def.Network.Value); err != nil {
 		return Parts{}, err
 	}
+	n.learn = learns(o, def.Network.Value)
 	s := summary{
 		vm: vm, o: o, d: d, p: p, agentsFrom: chosenBy(def.Agents.Source), layersFrom: chosenBy(def.Layers.Source),
-		size: shownSize(n.size, host), tier: n.net, ports: n.ports,
+		size: shownSize(n.size, host), tier: n.net, learn: n.learn, ports: n.ports,
 	}
 	if n.dc != nil {
 		s.dc = n.dc.File
@@ -570,7 +587,7 @@ func (e creation) customize(s summary, host Host, tierOpen bool, n *newVM) (Part
 		}
 	}
 	if tierOpen {
-		n.net = e.chooseTier(s.vm, n.net)
+		n.net, n.learn = e.chooseTier(s.vm, n.net, n.learn)
 	}
 	if s.o.Ports == "" {
 		if chosen := e.choosePorts(s.vm, n.ports); chosen != n.ports {
@@ -582,37 +599,49 @@ func (e creation) customize(s summary, host Host, tierOpen bool, n *newVM) (Part
 	return p, n.size.Check(host, backend.BaseDiskGiB, s.vm)
 }
 
-// chooseTier shows the tiers in order, each with what it reaches, for
-// one to be chosen, starting from shown, the one the summary showed;
-// where the picker can't show, it's shown.
-func (e creation) chooseTier(vm string, shown netpolicy.Tier) netpolicy.Tier {
+// chooseTier shows the network choices in order, each with what it
+// reaches, for one to be chosen, starting from the one the summary
+// showed: shown, learning with learn. It returns the tier chosen and
+// whether the VM learns; where the picker can't show, what it was shown.
+func (e creation) chooseTier(vm string, shown netpolicy.Tier, learn bool) (netpolicy.Tier, bool) {
 	if e.PickOne == nil {
-		return shown
+		return shown, learn
 	}
-	rows := tierRows(shown)
-	return netpolicy.Tiers()[e.PickOne(msg.NetTierHelp(vm), rows)]
+	rows := tierRows(shown, learn)
+	t, learn, _ := netpolicy.Choice(netpolicy.Choices()[e.PickOne(msg.NetTierHelp(vm), rows)])
+	return t, learn
 }
 
-// tierRows are the tier picker's rows: every tier, lowest to highest,
-// with what it reaches, shown on.
-func tierRows(shown netpolicy.Tier) []PickRow {
-	tiers := netpolicy.Tiers()
-	rows := make([]PickRow, len(tiers))
-	for i, t := range tiers {
-		rows[i] = PickRow{Name: string(t), Desc: t.Desc(), On: t == shown}
+// tierRows are the tier picker's rows: every network choice, the tiers
+// lowest to highest with learn after internet, each with what it
+// reaches, shown on (learn, with learn).
+func tierRows(shown netpolicy.Tier, learn bool) []PickRow {
+	on := string(shown)
+	if learn {
+		on = netpolicy.Learn
+	}
+	choices := netpolicy.Choices()
+	rows := make([]PickRow, len(choices))
+	for i, c := range choices {
+		rows[i] = PickRow{Name: c, Desc: netpolicy.ChoiceDesc(c), On: c == on}
 	}
 	return rows
 }
 
 // record sets a new VM's choices in its state, before it's written, with
-// the target and tool files it was given: each package's section.
+// the target and tool files it was given: each package's section. One
+// that learns learns from now on.
 func (n newVM) record(st *state.VM, tg tools.Target, files []string) error {
 	forward := n.ports
 	if forward == settings.PortsAll {
 		forward = ""
 	}
+	var learning netpolicy.Learning
+	if n.learn && n.net == netpolicy.TierInternet {
+		learning.Since = time.Now().UTC()
+	}
 	for _, err := range []error{
-		netpolicy.Set(st, netpolicy.Net{Tier: n.net}),
+		netpolicy.Set(st, netpolicy.Net{Tier: n.net, Learning: learning}),
 		gitprotect.Set(st, gitprotect.InVM{Mode: n.git}),
 		sshagent.Set(st, sshagent.InVM{Mode: n.agent}),
 		tools.Set(st, tools.InVM{Names: n.tools, Made: tools.Made{Files: files, Libc: tg.Libc, Glibc: tg.Glibc}}),

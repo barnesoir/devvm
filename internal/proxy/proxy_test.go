@@ -435,6 +435,66 @@ func TestInternal(t *testing.T) {
 		if own.internal(netip.MustParseAddr(s)) {
 			t.Errorf("%s shouldn't be internal", s)
 		}
+		if !Public(netip.MustParseAddr(s)) {
+			t.Errorf("%s should be public", s)
+		}
+	}
+	for _, s := range []string{"10.0.0.1", "::ffff:127.0.0.1", "64:ff9b::10.0.0.1", "fec0::1", "100.64.0.1"} {
+		if Public(netip.MustParseAddr(s)) {
+			t.Errorf("%s shouldn't be public", s)
+		}
+	}
+}
+
+// A CONNECT's event names the tool that sent it, its User-Agent, as devvm
+// network lock shows it.
+func TestConnectAgent(t *testing.T) {
+	t.Parallel()
+	s := testServer(t, Config{}, "")
+	events := logs(s)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodConnect, "http://new.test:443", nil)
+	req.Host = "new.test:443"
+	req.Header.Set("User-Agent", "curl/8.5.0")
+	s.handler(httptest.NewRecorder(), req)
+	if !strings.Contains(events.String(), `"agent":"curl/8.5.0"`) {
+		t.Errorf("logged %s", events.String())
+	}
+}
+
+// An allowlist read as the proxy reads its policies judges a host by its
+// rules: the built-in ones, a file's, a deny that beats an allow, and a
+// file whose denies alone apply; a built-in policy that isn't there is
+// an error.
+func TestReadAllowlist(t *testing.T) {
+	t.Parallel()
+	own := fstest.MapFS{"base.policy": {Data: []byte("github.com\n")}}
+	files := policyFiles(t, "example.com:*\n!github.com:22\nother.test:8080\n")
+	denies := policyFiles(t, "deniesonly.test\n!example.com:8443\n")
+	a, err := ReadAllowlist(own, []string{"base.policy"}, files, denies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		host string
+		port int
+		want bool
+	}{
+		{"github.com", 443, true},
+		{"GitHub.com.", 80, true},
+		{"github.com", 22, false},
+		{"example.com", 443, true},
+		{"example.com", 8443, false},
+		{"other.test", 8080, true},
+		{"other.test", 443, false},
+		{"deniesonly.test", 443, false},
+		{"new.test", 443, false},
+	} {
+		if got := a.Allows(c.host, c.port); got != c.want {
+			t.Errorf("Allows(%s, %d) = %v, want %v", c.host, c.port, got, c.want)
+		}
+	}
+	if _, err := ReadAllowlist(own, []string{"gone.policy"}, nil, nil); err == nil {
+		t.Error("a missing built-in policy: want an error")
 	}
 }
 
