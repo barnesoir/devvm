@@ -1,6 +1,7 @@
 ---
 title: devvm secret rm
 weight: 49
+explainer: "Delete a saved secret"
 ---
 
 Delete a saved secret

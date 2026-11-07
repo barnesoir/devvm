@@ -1,6 +1,7 @@
 ---
 title: devvm retention
 weight: 46
+explainer: "Show or change what devvm deletes on its own"
 ---
 
 Show or change what devvm deletes on its own

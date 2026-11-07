@@ -1,6 +1,7 @@
 ---
 title: devvm network lock
 weight: 38
+explainer: "Lock this folder's VM to the hosts it learned, on the allowlist tier"
 ---
 
 Lock this folder's VM to the hosts it learned, on the allowlist tier

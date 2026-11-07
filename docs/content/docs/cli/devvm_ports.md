@@ -1,6 +1,7 @@
 ---
 title: devvm ports
 weight: 41
+explainer: "Show or change which ports this folder's VM forwards"
 ---
 
 Show or change which ports this folder's VM forwards

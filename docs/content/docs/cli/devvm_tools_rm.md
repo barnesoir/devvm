@@ -1,6 +1,7 @@
 ---
 title: devvm tools rm
 weight: 62
+explainer: "Take shared tools out of this folder's VM, then open a shell in it"
 ---
 
 Take shared tools out of this folder's VM, then open a shell in it

@@ -1,6 +1,7 @@
 ---
 title: devvm stop
 weight: 59
+explainer: "Stop this folder's VM"
 ---
 
 Stop this folder's VM
