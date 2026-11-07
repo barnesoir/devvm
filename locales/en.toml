@@ -2575,12 +2575,19 @@ description = "providers lists opencode's OAuth login providers, comma-separated
 other = "The VM gets opencode's {{.providers}} login without its OAuth tokens, because devvm keeps them on this machine. To use that provider in the VM, log in to it with an API key on this machine and run devvm agent import --force opencode."
 
 [pi_login_kept]
-description = "providers lists pi's login providers, comma-separated"
-other = "The VM gets pi's {{.providers}} login unchanged."
+description = "providers lists the providers of pi's that config.toml's [pass-keys] lists, comma-separated"
+other = "The VM gets pi's {{.providers}} login unchanged, as config.toml's [pass-keys] asks."
+
+[pi_settings_dropped]
+description = "keys lists the keys of pi's settings.json that the VM's copy leaves out, space-separated"
+other = "The copy of pi's settings.json in {{.vm}} leaves out {{.keys}}, because devvm sets those in VMs."
+
+[pi_trusts_all]
+other = "pi's settings.json sets defaultProjectTrust to always, so pi in {{.vm}} loads a project folder's own .pi extensions and settings without asking. Set it to ask in devvm's agent store to have pi ask again."
 
 [pi_login_withheld]
-description = "providers lists pi's OAuth login providers, comma-separated"
-other = "The VM gets pi's {{.providers}} login without its OAuth tokens, because devvm keeps no OAuth login of pi's. To use that provider in the VM, save its API key with devvm agent login pi --api-key."
+description = "providers lists pi's login providers devvm neither binds nor passes, comma-separated"
+other = "The VM gets pi's {{.providers}} login without its key, its env or its tokens. To give the VM one provider's API key as it is, such as a local model server's, list the provider under pi in config.toml's [pass-keys]."
 
 [devcontainer_flag_wins]
 description = "key is a devcontainer.json property (image, forwardPorts), flag the devvm flag given instead (from, ports)"

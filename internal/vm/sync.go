@@ -448,7 +448,13 @@ func (e syncer) stageSecrets(ctx context.Context, s *stage, store *secrets.Store
 			}
 			continue
 		}
-		out, keys, err := agentlogin.Redact(format, f.data)
+		data, err := e.piSettings(rel, f.data, vm)
+		if err != nil {
+			s.drop(f.name)
+			e.Warn(msg.ConfigNotCopied(shown, vm))
+			continue
+		}
+		out, keys, err := agentlogin.Redact(format, data)
 		if err != nil {
 			s.drop(f.name)
 			e.Warn(msg.ConfigNotCopied(shown, vm))
@@ -461,6 +467,27 @@ func (e syncer) stageSecrets(ctx context.Context, s *stage, store *secrets.Store
 		}
 	}
 	return nil
+}
+
+// piSettings is pi's settings.json, at rel below the home folder, as the
+// VM's copy holds it (agentlogin.PiSettings): without the keys that undo
+// what devvm sets in the VM, which it names, with a warning when it
+// trusts every project folder. Any other file is data as it is.
+func (e syncer) piSettings(rel string, data []byte, vm string) ([]byte, error) {
+	if rel != piDir+"/settings.json" {
+		return data, nil
+	}
+	out, dropped, trustsAll, err := agentlogin.PiSettings(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(dropped) > 0 {
+		e.Note(msg.PiSettingsDropped(strings.Join(dropped, " "), vm))
+	}
+	if trustsAll {
+		e.Warn(msg.PiTrustsAll(vm))
+	}
+	return out, nil
 }
 
 // settingsFormat returns the format of an agent's settings file, by its

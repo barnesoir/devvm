@@ -31,21 +31,24 @@ cmp $DATA/logins/pi/.pi/agent/auth.json $WORK/auth.json
 stdout '^700\n600\n$'
 
 # A VM with pi: the store's skills are linked to their mount, the
-# settings files copied without their keys, the keybindings and Markdown
-# as they are, and the login's copy holds placeholders; the proxy binds
-# the Anthropic key, and the VM gets the other provider's key as it is.
+# settings files copied without their keys, settings.json also without
+# its proxy, session folder and update command, the keybindings and
+# Markdown as they are, and the login's copy holds placeholders; the
+# proxy binds the Anthropic key, and the VM gets the other provider's
+# key and the OAuth login without their key or tokens, warned.
 project p
 stub_reset
-exec devvm --network allowlist --no-git-protect --agents pi
+exec devvm --network open --no-git-protect --agents pi
 vm_name P p
-stderr '^devvm: pi_login_kept providers=groq$'
-stderr '^devvm: pi_login_withheld providers=openai-codex$'
+stderr '^devvm: pi_login_withheld providers=groq, openai-codex$'
+! stderr pi_login_kept
+stderr '^pi_settings_dropped keys=httpProxy selfUpdateCommand sessionDir vm=devvm-p-[0-9a-f]{14}$'
+stderr '^devvm: pi_trusts_all vm=devvm-p-[0-9a-f]{14}$'
 exec tar -xOf $STUB_DIR/sync.tar links
 stdout '^\.pi/agent/skills\n\S*/config/devvm/agents/pi/\.pi/agent/skills$'
 exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/settings.json
 stdout '"defaultProvider": "anthropic"'
-stdout '"httpProxy": "http://proxy.example:8080"'
-! stdout testfake
+! stdout 'httpProxy|proxy\.example|sessionDir|selfUpdateCommand|testfake'
 exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/models.json
 stdout '"apiKey": "devvm-redacted"'
 ! stdout testfake
@@ -53,19 +56,39 @@ exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/keybindings.json
 cmp stdout $WORK/keybindings.json
 exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/auth.json
 stdout '"key": "devvm-proxy-managed-pi-anthropic-[0-9a-f]{32}"'
-stdout '"key": "gsk-local"'
-stdout '"access": "devvm-redacted"'
-! stdout testfake
+! stdout 'gsk-local|"access"|"refresh"|testfake'
 exec tar -tf $STUB_DIR/sync.tar
 ! stdout 'sessions|trust\.json|bin/fd'
 grep '"name":"pi-anthropic"' $P_dir/run/secrets.json
+
+# config.toml's [pass-keys] gives the VM groq's key as it is, noted.
+cp $WORK/pass.toml $CFG/config.toml
+exec devvm host
+stderr '^pi_login_kept providers=groq$'
+stderr '^devvm: pi_login_withheld providers=openai-codex$'
+exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/auth.json
+stdout '"key": "gsk-local"'
+! stdout testfake
+# One devvm can't read fails the launch, naming its line.
+cp $WORK/badpass.toml $CFG/config.toml
+! exec devvm host
+stderr 'config\.toml'
+rm $CFG/config.toml
 
 -- skill.md --
 # a skill
 -- agents.md --
 Write tests.
+-- pass.toml --
+features = []
+[pass-keys]
+pi = ["groq"]
+-- badpass.toml --
+features = []
+[pass-keys]
+pi = ["Groq"]
 -- settings.json --
-{"defaultProvider":"anthropic","httpProxy":"http://user:testfake-pass@proxy.example:8080"}
+{"defaultProvider":"anthropic","httpProxy":"http://user:testfake-pass@proxy.example:8080","sessionDir":"/tmp/s","selfUpdateCommand":["sh","-c","testfake"],"defaultProjectTrust":"always"}
 -- models.json --
 {"providers":{"local":{"baseUrl":"http://localhost:11434/v1","apiKey":"testfake-model-key","models":[{"id":"m"}]}}}
 -- keybindings.json --

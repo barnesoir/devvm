@@ -22,6 +22,7 @@ import (
 	"github.com/devvmhq/devvm/internal/paths"
 	"github.com/devvmhq/devvm/internal/platform"
 	"github.com/devvmhq/devvm/internal/proxy"
+	"github.com/devvmhq/devvm/internal/settings"
 	"github.com/devvmhq/devvm/internal/state"
 	"github.com/devvmhq/devvm/internal/tools"
 )
@@ -289,16 +290,26 @@ func (s *Store) login(kind, salt string) agentlogin.File {
 // VMLogin returns the VM's copy of an agent's login file: placeholders
 // ending in salt in place of its keys and tokens. It warns about what of
 // the file the copy holds as it is, and about the logins it holds without
-// their tokens.
+// their tokens. pi's copy holds as they are the API keys of the providers
+// config.toml's [pass-keys] lists for it (settings.PassKeys), which it
+// notes, and withholds every other key devvm doesn't bind.
 func (s *Store) VMLogin(kind, salt string) ([]byte, error) {
-	c, err := s.login(kind, salt).VMCopy()
+	f := s.login(kind, salt)
+	if kind == agentlogin.Pi {
+		pass, err := settings.PassKeys(s.Dirs, kind)
+		if err != nil {
+			return nil, err
+		}
+		f.Pass = pass
+	}
+	c, err := f.VMCopy()
 	if len(c.Kept) > 0 {
 		list := strings.Join(c.Kept, ", ")
 		switch kind {
 		case agentlogin.Codex:
 			s.Warn(msg.CodexLoginKept(list))
 		case agentlogin.Pi:
-			s.Warn(msg.PiLoginKept(list))
+			s.Note(msg.PiLoginKept(list))
 		default:
 			s.Warn(msg.OpencodeLoginKept(list))
 		}

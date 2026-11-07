@@ -53,6 +53,9 @@ type configFile struct {
 	// ReleaseCheck is the daily check for a newer release (ReleaseCheck),
 	// which no command saves.
 	ReleaseCheck opt[switchKind] `toml:"release-check"`
+	// PassKeys are the providers whose API keys an agent's VMs get as
+	// they are (PassKeys), which no command saves.
+	PassKeys passKeys `toml:"pass-keys"`
 	// Proxy is the company proxy (HostProxy), which no command saves.
 	Proxy struct {
 		HTTPS   opt[proxyHTTPSKind] `toml:"https"`
@@ -132,7 +135,7 @@ func (c *configFile) refused() (msg.M, bool) {
 	for _, v := range []refuser{
 		&c.Network, &c.Ports, &c.Features, &c.Agents, &c.Layers, &c.Size.CPUs, &c.Size.Memory, &c.Size.Disk,
 		&r.Logs.Runs, &r.History.Age, &r.History.Count, &r.Tools.UnusedAge, &r.Orphans.Age, &r.NixCache.Size,
-		&c.Proxy.HTTPS, &c.Proxy.HTTP, &c.Proxy.NoProxy, &c.UbuntuMirror,
+		&c.Proxy.HTTPS, &c.Proxy.HTTP, &c.Proxy.NoProxy, &c.UbuntuMirror, &c.PassKeys.Pi,
 	} {
 		if m, ok := v.refusal(); ok {
 			return m, true

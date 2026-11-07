@@ -198,6 +198,8 @@ var docs = map[string]string{ //nolint:gosec // message IDs and pages, not crede
 	"opencode_login_withheld":        "using/coding-agents#codex-and-opencode-logins",
 	"pi_login_kept":                  "using/coding-agents#pi-logins",
 	"pi_login_withheld":              "using/coding-agents#pi-logins",
+	"pi_settings_dropped":            "using/coding-agents#pis-settings",
+	"pi_trusts_all":                  "using/coding-agents#pis-settings",
 	"codex_no_key":                   "using/coding-agents#codex-and-opencode-logins",
 	"codex_no_chatgpt":               "using/coding-agents#codex-and-opencode-logins",
 	"codex_refresh_failed":           "using/coding-agents#codex-and-opencode-logins",

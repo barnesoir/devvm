@@ -2659,14 +2659,24 @@ func PasswordPrompt() M {
 	return M{id: "password_prompt"}
 }
 
-// PiLoginKept is [pi_login_kept]: "The VM gets pi's {{.providers}} login unchanged."
+// PiLoginKept is [pi_login_kept]: "The VM gets pi's {{.providers}} login unchanged, as config.toml's [pass-keys] asks."
 func PiLoginKept(providers string) M {
 	return M{id: "pi_login_kept", vals: []val{{"providers", providers}}}
 }
 
-// PiLoginWithheld is [pi_login_withheld]: "The VM gets pi's {{.providers}} login without its OAuth tokens, because devvm keeps no OAuth login of pi's. To use that provider in the VM, save its API key with devvm agent login pi --api-key."
+// PiLoginWithheld is [pi_login_withheld]: "The VM gets pi's {{.providers}} login without its key, its env or its tokens. To give the VM one provider's API key as it is, such as a local model server's, list the provider under pi in config.toml's [pass-keys]."
 func PiLoginWithheld(providers string) M {
 	return M{id: "pi_login_withheld", vals: []val{{"providers", providers}}}
+}
+
+// PiSettingsDropped is [pi_settings_dropped]: "The copy of pi's settings.json in {{.vm}} leaves out {{.keys}}, because devvm sets those in VMs."
+func PiSettingsDropped(keys string, vm string) M {
+	return M{id: "pi_settings_dropped", vals: []val{{"keys", keys}, {"vm", vm}}}
+}
+
+// PiTrustsAll is [pi_trusts_all]: "pi's settings.json sets defaultProjectTrust to always, so pi in {{.vm}} loads a project folder's own .pi extensions and settings without asking. Set it to ask in devvm's agent store to have pi ask again."
+func PiTrustsAll(vm string) M {
+	return M{id: "pi_trusts_all", vals: []val{{"vm", vm}}}
 }
 
 // PickAgents is [pick_agents]: "Coding agents, which you start in the VM's shell"
@@ -4544,6 +4554,8 @@ var specs = map[string]spec{
 	"password_prompt":                {},
 	"pi_login_kept":                  {fields: []string{"providers"}},
 	"pi_login_withheld":              {fields: []string{"providers"}},
+	"pi_settings_dropped":            {fields: []string{"keys", "vm"}},
+	"pi_trusts_all":                  {fields: []string{"vm"}},
 	"pick_agents":                    {},
 	"pick_called_for":                {fields: []string{"file"}},
 	"pick_from_flag":                 {fields: []string{"flag"}},

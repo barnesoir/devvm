@@ -1,26 +1,42 @@
 package agentlogin
 
 import (
+	"encoding/json"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 )
 
-// pi's auth.json: the API keys of Anthropic, OpenAI and OpenRouter become the VM's placeholders,
-// bound for their hosts and headers, and Get reads them from the host's file; a command key and
-// another provider's key stay as they are, named; an OAuth login loses its tokens and whatever
-// else looks like a secret, named too; what isn't a secret stays.
+// pi's auth.json in the VM, whole. A bound key (Anthropic's, OpenRouter's) becomes the VM's
+// placeholder, bound for its host and header, and its entry holds nothing else: no env, which pi
+// lets win over the environment, and no other field, nested or not. A templated key ($K, filled
+// from env) and a command key aren't bound; neither is another provider's key, nor an env holding
+// one (Azure's, Bedrock's): each is withheld, as an OAuth login is, keeping only fields that name
+// an account. The provider File.Pass lists (a local model server) goes as it is. Get reads only
+// the bound keys from the host's file.
 func TestPiLogins(t *testing.T) {
-	f := File{Kind: Pi, Salt: "s1", Path: writeFile(t, map[string]any{
-		"anthropic":    map[string]any{"type": "api_key", "key": "sk-ant-e2efake"},
-		"openrouter":   map[string]any{"type": "api_key", "key": "sk-or-e2efake", "env": map[string]any{"X": "kept"}},
-		"openai":       map[string]any{"type": "api_key", "key": "!security find-generic-password -ws openai"},
-		"groq":         map[string]any{"type": "api_key", "key": "gsk-local"},
-		"openai-codex": map[string]any{"type": "oauth", "access": "at-e2efake", "refresh": "rt-e2efake", "expires": 1, "accountId": "acct-1", "idToken": "id-e2efake"}, //nolint:gosec // G101: fake tokens, which no service takes
+	f := File{Kind: Pi, Salt: "s1", Pass: []string{"ollama", "groq-oauth"}, Path: writeFile(t, map[string]any{ //nolint:gosec // G101: fake keys and tokens, which no service takes
+		"anthropic": map[string]any{
+			"type": "api_key", "key": "sk-ant-e2efake", "env": map[string]any{"K": "sk-ant-e2efake-env"},
+			"token": "tk-e2efake", "nested": map[string]any{"refresh": "rt-e2efake-nested"},
+		},
+		"openrouter":     map[string]any{"type": "api_key", "key": "sk-or-e2efake"},
+		"openai":         map[string]any{"type": "api_key", "key": "$K", "env": map[string]any{"K": "sk-e2efake-template", "OPENAI_API_KEY": "sk-e2efake-env"}},
+		"azure":          map[string]any{"type": "api_key", "key": "x", "env": map[string]any{"AZURE_OPENAI_API_KEY": "az-e2efake"}},
+		"amazon-bedrock": map[string]any{"type": "api_key", "env": map[string]any{"AWS_SECRET_ACCESS_KEY": "aws-e2efake"}},
+		"google":         map[string]any{"type": "api_key", "key": "!pass show e2efake"},
+		"groq":           map[string]any{"type": "api_key", "key": "gsk-e2efake"},
+		"ollama":         map[string]any{"type": "api_key", "key": "ollama-local", "env": map[string]any{"OLLAMA_HOST": "kept"}},
+		"groq-oauth":     map[string]any{"type": "oauth", "access": "at-e2efake-passed", "refresh": "rt-e2efake-passed"},
+		"openai-codex": map[string]any{
+			"type": "oauth", "access": "at-e2efake", "refresh": "rt-e2efake", "expires": 1, "accountId": "acct-1",
+			"idToken": "id-e2efake", "scopes": []any{"openid"}, "extra": map[string]any{"refresh": "rt-e2efake-x"},
+			"email": []any{map[string]any{"t": "e2efake-in-a-list"}},
+		},
 	})}
-	bs := bindings(t, f)
 	var got []string
-	for _, b := range bs {
+	for _, b := range bindings(t, f) {
 		got = append(got, b.Name+" "+strings.Join(b.Hosts, ",")+" "+b.Header+" "+b.Placeholder)
 	}
 	want := []string{
@@ -32,26 +48,72 @@ func TestPiLogins(t *testing.T) {
 	}
 	c, err := f.VMCopy()
 	must(t, err)
-	out := string(c.Data)
-	for _, secret := range []string{"sk-ant-e2efake", "sk-or-e2efake", "at-e2efake", "rt-e2efake", "id-e2efake"} {
-		if strings.Contains(out, secret) {
-			t.Errorf("the VM's copy holds %q:\n%s", secret, out)
-		}
+	var vm, wantVM any
+	must(t, json.Unmarshal(c.Data, &vm))
+	must(t, json.Unmarshal([]byte(`{
+		"anthropic": {"type": "api_key", "key": "devvm-proxy-managed-pi-anthropic-s1"},
+		"openrouter": {"type": "api_key", "key": "devvm-proxy-managed-pi-openrouter-s1"},
+		"openai": {"type": "api_key"}, "azure": {"type": "api_key"}, "amazon-bedrock": {"type": "api_key"},
+		"google": {"type": "api_key"}, "groq": {"type": "api_key"},
+		"ollama": {"type": "api_key", "key": "ollama-local", "env": {"OLLAMA_HOST": "kept"}},
+		"groq-oauth": {"type": "oauth"},
+		"openai-codex": {"type": "oauth", "expires": 1, "accountId": "acct-1", "scopes": ["openid"]}
+	}`), &wantVM))
+	if !reflect.DeepEqual(vm, wantVM) {
+		t.Errorf("the VM's copy:\n%s", c.Data)
 	}
-	for _, kept := range []string{"devvm-proxy-managed-pi-anthropic-s1", `"kept"`, "!security find-generic-password", "gsk-local", "acct-1", `"api_key"`} {
-		if !strings.Contains(out, kept) {
-			t.Errorf("the VM's copy lacks %q:\n%s", kept, out)
-		}
+	if strings.Contains(string(c.Data), "e2efake") {
+		t.Errorf("the VM's copy holds a key or token:\n%s", c.Data)
 	}
-	if !slices.Equal(c.Kept, []string{"groq", "openai"}) || !slices.Equal(c.Withheld, []string{"openai-codex"}) {
+	withheld := []string{"amazon-bedrock", "azure", "google", "groq", "groq-oauth", "openai", "openai-codex"}
+	if !slices.Equal(c.Kept, []string{"ollama"}) || !slices.Equal(c.Withheld, withheld) {
 		t.Errorf("kept %v, withheld %v", c.Kept, c.Withheld)
 	}
 	if v, err := f.Get(t.Context(), "pi-anthropic"); err != nil || v != "sk-ant-e2efake" {
 		t.Errorf("Get(pi-anthropic) = %q, %v", v, err)
 	}
-	for _, name := range []string{"pi-openai", "pi-groq", "pi-openai-codex", "pi-nothing"} {
+	for _, name := range []string{"pi-openai", "pi-groq", "pi-ollama", "pi-openai-codex", "pi-nothing"} {
 		if v, err := f.Get(t.Context(), name); err == nil {
 			t.Errorf("Get(%s) = %q, no error", name, v)
+		}
+	}
+}
+
+// A pi key is bound only when it's a value: not a command (!), and without a $NAME or ${NAME}
+// that pi fills in, $$ being a literal $.
+func TestPiKeyTemplates(t *testing.T) {
+	for key, bound := range map[string]bool{
+		"sk-plain": true, "sk-$": true, "sk-$1": true, "$$K": true, "a$$b": true,
+		"$K": false, "${K}": false, "a$K": false, "a${K}b": false, "$$$K": false, "!cmd": false, "": false,
+	} {
+		m := map[string]any{"anthropic": map[string]any{"type": "api_key", "key": key}}
+		if _, ok := piKey(m, "anthropic"); ok != bound {
+			t.Errorf("piKey(%q) bound = %v, want %v", key, ok, bound)
+		}
+	}
+}
+
+// pi's settings.json in the VM: without the keys that would undo devvm's (its proxy, a session
+// folder outside the history, a self-update command), named; a file without them as it is; the
+// trust that loads every project's .pi said; one that isn't a JSON object refused.
+func TestPiSettings(t *testing.T) {
+	in := []byte(`{"theme":"dark","httpProxy":"http://proxy.example:8080","sessionDir":"/tmp/s",` +
+		`"selfUpdateCommand":["sh","-c","x"],"defaultProjectTrust":"always"}`)
+	out, dropped, trustsAll, err := PiSettings(in)
+	must(t, err)
+	var m map[string]any
+	must(t, json.Unmarshal(out, &m))
+	if !reflect.DeepEqual(m, map[string]any{"theme": "dark", "defaultProjectTrust": "always"}) ||
+		!slices.Equal(dropped, []string{"httpProxy", "selfUpdateCommand", "sessionDir"}) || !trustsAll {
+		t.Errorf("PiSettings = %s, %v, %v", out, dropped, trustsAll)
+	}
+	plain := []byte(`{"theme":"light"}`)
+	if out, dropped, trustsAll, err := PiSettings(plain); err != nil || string(out) != string(plain) || dropped != nil || trustsAll {
+		t.Errorf("PiSettings of a plain file = %s, %v, %v, %v", out, dropped, trustsAll, err)
+	}
+	for _, bad := range []string{`[]`, `{`, `"x"`} {
+		if _, _, _, err := PiSettings([]byte(bad)); err == nil {
+			t.Errorf("PiSettings(%s) took it", bad)
 		}
 	}
 }

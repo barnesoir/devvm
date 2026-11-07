@@ -1024,6 +1024,8 @@ func netPi(n *netRun) {
 			return errors.New("pi --version failed")
 		case vmOut(s, vm, "printenv PI_SKIP_VERSION_CHECK") != "1" || vmOut(s, vm, "printenv PI_TELEMETRY") != "0":
 			return errors.New("PI_SKIP_VERSION_CHECK isn't 1, or PI_TELEMETRY isn't 0")
+		case nonLogin(s, vm, "printenv PI_SKIP_VERSION_CHECK PI_TELEMETRY") != "1\n0":
+			return errors.New("a non-login bash -c, as ssh VM pi runs pi, lacks PI_SKIP_VERSION_CHECK=1 or PI_TELEMETRY=0")
 		case inVM(s, vm, "fdfind --version && rg --version") != nil:
 			return errors.New("base has no fdfind or rg for pi")
 		case inVM(s, vm, `d=$(dirname "$(mise which pi)") && [ -d "$d" ] && ! touch "$d/devvm-e2e" 2>/dev/null`) != nil:
@@ -1096,6 +1098,13 @@ func netPiTools(n *netRun) {
 		}
 		return nil
 	}, Tail(40))
+}
+
+// nonLogin is what script printed in a non-login bash -c in the VM, as
+// ssh VM COMMAND and editors run one, trimmed.
+func nonLogin(s *S, vm, script string) string {
+	r, _ := vmRun(s, vm, "bash", "-c", script)
+	return strings.TrimSpace(r.Stdout)
 }
 
 // piStart is the script that starts pi's terminal UI in the VM with PATH

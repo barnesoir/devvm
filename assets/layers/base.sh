@@ -95,7 +95,9 @@ rm /tmp/mise
 # pi's check for a newer pi (which asks for pi update) are off, and dotnet tool install -g installs
 # into ~/.dotnet/tools, which is on the PATH, so the SDK
 # doesn't add it to a shell's profile on its first run. .NET's telemetry, its first-run banner and
-# its background check for workload updates are off.
+# its background check for workload updates are off, and so is pi's install report, here rather
+# than in devvm-telemetry.sh, so a pi that a non-login shell runs (ssh VM pi, an editor's terminal)
+# sends none either.
 sudo tee /etc/profile.d/devvm-tools.sh >/dev/null <<'SH'
 case ":$PATH:" in *":$HOME/.local/share/mise/shims:"*) ;; *)
   export PATH="$HOME/.npm-global/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.dotnet/tools:$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH" ;;
@@ -104,6 +106,7 @@ export NPM_CONFIG_PREFIX="$HOME/.npm-global"
 export DISABLE_AUTOUPDATER=1
 export OPENCODE_DISABLE_AUTOUPDATE=1
 export PI_SKIP_VERSION_CHECK=1
+export PI_TELEMETRY=0
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 export DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=false
@@ -152,7 +155,6 @@ sudo tee /etc/profile.d/devvm-telemetry.sh >/dev/null <<'SH'
 export DO_NOT_TRACK=1                 # generic opt-out (bun and others)
 export DISABLE_TELEMETRY=1            # Claude Code
 export DISABLE_ERROR_REPORTING=1      # Claude Code
-export PI_TELEMETRY=0                 # pi: its install report and its attribution headers
 export NEXT_TELEMETRY_DISABLED=1
 export TURBO_TELEMETRY_DISABLED=1
 export ASTRO_TELEMETRY_DISABLED=1

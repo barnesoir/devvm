@@ -99,6 +99,10 @@ type File struct {
 	// TokenURL is where OAuth tokens are refreshed: when empty, ClaudeTokenURL for ClaudeOAuth,
 	// else OpenAITokenURL.
 	TokenURL string
+	// Pass are the providers whose API-key entries the VM's copy holds as they are (pi's, from
+	// config.toml's [pass-keys]), unless devvm binds them; any other entry devvm doesn't bind is
+	// withheld.
+	Pass []string
 }
 
 // salted: a placeholder made the VM's own.
@@ -853,11 +857,11 @@ func (f File) Bindings() ([]proxy.Binding, error) {
 // VMFile is the VM's copy of an agent's file (File.VMCopy).
 type VMFile struct {
 	Data []byte
-	// Kept: what of the file the copy holds as it is, sorted: Codex's auth.json keys, or opencode's
-	// or pi's providers devvm doesn't know.
+	// Kept: what of the file the copy holds as it is, sorted: Codex's auth.json keys, opencode's
+	// providers devvm doesn't know, or pi's providers that File.Pass lists.
 	Kept []string
-	// Withheld: opencode's or pi's OAuth logins devvm doesn't bind, sorted, which the copy holds
-	// without their tokens.
+	// Withheld: opencode's OAuth logins devvm doesn't bind, or every pi login devvm neither binds
+	// nor passes, sorted, which the copy holds without their keys and tokens.
 	Withheld []string
 }
 
@@ -877,8 +881,8 @@ func (f File) VMCopy() (VMFile, error) {
 		c.Kept, c.Withheld = opencodeUnbound(m, false), opencodeUnbound(m, true)
 		m = opencodeVM(m, f.Salt)
 	case Pi:
-		c.Kept, c.Withheld = piUnbound(m, false), piUnbound(m, true)
-		m = piVM(m, f.Salt)
+		c.Kept, c.Withheld = piPasses(m, f.Pass), piWithheld(m, f.Pass)
+		m = piVM(m, f.Salt, f.Pass)
 	case Claude:
 		m = claudeVM(m, f.Salt)
 	case ClaudeOAuth:
