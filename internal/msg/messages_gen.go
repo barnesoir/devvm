@@ -2024,6 +2024,11 @@ func LogFailed(reason string) M {
 	return M{id: "log_failed", vals: []val{{"reason", reason}}}
 }
 
+// LoginCaptureRefused is [login_capture_refused]: "{{.vm}} doesn't have {{.agent}}, so devvm didn't save the {{.agent}} login it sent. Log {{.agent}} in from a VM that has it."
+func LoginCaptureRefused(agent string, vm string) M {
+	return M{id: "login_capture_refused", vals: []val{{"agent", agent}, {"vm", vm}}}
+}
+
 // LoginCopyFailed is [login_copy_failed]: "Making {{.vm}}'s copy of {{.agent}}'s login failed: {{.reason}}."
 func LoginCopyFailed(agent string, reason string, vm string) M {
 	return M{id: "login_copy_failed", vals: []val{{"agent", agent}, {"reason", reason}, {"vm", vm}}}
@@ -4395,6 +4400,7 @@ var specs = map[string]spec{
 	"log_empty":                      {fields: []string{"vm"}},
 	"log_end":                        {fields: []string{"file"}},
 	"log_failed":                     {fields: []string{"reason"}},
+	"login_capture_refused":          {fields: []string{"agent", "vm"}},
 	"login_copy_failed":              {fields: []string{"agent", "reason", "vm"}},
 	"login_read_failed":              {fields: []string{"file", "reason"}},
 	"ls_failed":                      {fields: []string{"reason"}},

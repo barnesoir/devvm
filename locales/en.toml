@@ -2485,6 +2485,10 @@ other = "The Codex login in devvm's agent store has no API key any more, so the 
 [codex_no_chatgpt]
 other = "The Codex login in devvm's agent store isn't a ChatGPT login any more, so the VM's proxy has none to put in. Run devvm agent login codex in the VM's folder."
 
+[login_capture_refused]
+description = "agent is the agent whose login the VM sent, such as codex"
+other = "{{.vm}} doesn't have {{.agent}}, so devvm didn't save the {{.agent}} login it sent. Log {{.agent}} in from a VM that has it."
+
 [codex_refresh_failed]
 description = "reason is an error from the system or OpenAI's token endpoint, in English"
 other = "Refreshing the Codex login in devvm's agent store failed: {{.reason}}. Run devvm agent login codex in a VM's folder to log in again."

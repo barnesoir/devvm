@@ -201,6 +201,7 @@ var docs = map[string]string{ //nolint:gosec // message IDs and pages, not crede
 	"codex_refresh_failed":           "using/coding-agents#codex-and-opencode-logins",
 	"opencode_refresh_failed":        "using/coding-agents#codex-and-opencode-logins",
 	"login_read_failed":              "using/coding-agents#codex-and-opencode-logins",
+	"login_capture_refused":          "using/coding-agents#logins-made-in-a-vm",
 	"setid_files":                    "using/troubleshooting#devvm-names-set-id-files",
 	"setid_root_files":               "using/troubleshooting#devvm-names-set-id-files",
 	"home_not_absolute":              "using/troubleshooting#home-isnt-an-absolute-path",
