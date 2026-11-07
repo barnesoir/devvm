@@ -197,7 +197,7 @@ If the image isn't built yet, devvm builds it first, then the shared tools the s
 
 ### Choosing in a list
 
-devvm's lists work the same way everywhere: the new VM's list, its network tiers and ports, `devvm tools`, and base's features in `devvm setup`. Up and down, or `k` and `j`, move. In a list where you choose several, such as the toolchains, coding agents and layers, space chooses or unchooses the row under the cursor. In a list where you choose one, such as the network tiers, moving chooses it. Enter confirms. A row that's greyed out, such as a part a flag gave or a VM's layers in `devvm tools`, can't change, and the cursor skips it. At a question with a value in brackets, such as a size, Enter keeps that value.
+devvm's lists work the same way everywhere: the new VM's list, its network tiers and ports, `devvm tools`, base's features in `devvm setup`, and the hosts in `devvm network lock`. Up and down, or `k` and `j`, move. In a list where you choose several, such as the toolchains, coding agents and layers, space chooses or unchooses the row under the cursor, and `a` chooses every row, or unchooses them all when they're all chosen already. In a list where you choose one, such as the network tiers, moving chooses it. Enter confirms. A row that's greyed out, such as a part a flag gave or a VM's layers in `devvm tools`, can't change, and the cursor skips it. A list longer than the terminal scrolls with the cursor, with a line above and below that says how many more rows there are, and each row is cut to the terminal's width. At a question with a value in brackets, such as a size, Enter keeps that value.
 
 ## Rebuilding
 

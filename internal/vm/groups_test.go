@@ -201,6 +201,24 @@ func TestLockGroups(t *testing.T) {
 	}
 }
 
+// A learning VM can't join a group, whose VMs share one tier, until it's
+// locked: then it can.
+func TestGroupJoinLearning(t *testing.T) {
+	e, f, _ := upEnv(t, allNative())
+	f.LifelineFile = filepath.Join(e.Dirs.Lima, "vm", "ha.pid")
+	f.ExecFunc = noDirect
+	st := existingVM(t, e, Options{Network: "internet", Learn: true})
+	if err := (Groups{e}).Join(t.Context(), "web", ""); msg.NamesOf(err) != "group_join_learning group=web vm="+st.Name() {
+		t.Errorf("Join while learning = %v", msg.NamesOf(err))
+	}
+	if err := (Net{e}).Lock(t.Context(), LockOptions{None: true}); err != nil {
+		t.Fatal(msg.NamesOf(err))
+	}
+	if err := (Groups{e}).Join(t.Context(), "web", ""); err != nil {
+		t.Errorf("Join once locked = %v", msg.NamesOf(err))
+	}
+}
+
 // Two VMs joining one group at once, one with network policy and one
 // without: the groups lock checks one join after the other, so only one
 // gets in, every time.

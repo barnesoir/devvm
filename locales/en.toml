@@ -50,6 +50,9 @@ other = "The command {{.command}} takes no arguments, not {{.given}}."
 description = "given is the argument as typed; choices are the values the command takes, such as on, off"
 other = "{{.given}} isn't one of the values {{.command}} takes: {{.choices}}."
 
+[net_learn_not_global]
+other = "New VMs can't learn by default, because each VM learns the hosts it needs on its own. Make one learn with devvm --network learn, or with devvm network learn in its folder."
+
 [no_subcommand]
 description = "given is the word as typed; commands are the command's own, such as add, rm, update"
 other = "There's no command {{.command}} {{.given}}. The commands under {{.command}} are {{.commands}}."
@@ -1403,6 +1406,9 @@ other = "The group {{.group}} has a VM on the {{.tier}} tier and {{.vm}} is on {
 [group_tier_fixed]
 other = "{{.vm}} is in the group {{.group}}, whose VMs are all on one tier, so its tier can't change. Run devvm group leave first."
 
+[group_join_learning]
+other = "{{.vm}} is learning the hosts it needs, and the group {{.group}}'s VMs are all on one tier, so it can't join until it's locked. Run devvm network lock first."
+
 [group_name_taken]
 description = "name is the name this VM would join as; member is the VM in the group that has it, as its name or its folder's"
 other = "{{.name}} already names {{.member}} in the group {{.group}}. Give this VM another name with --as NAME."
@@ -1532,6 +1538,15 @@ other = "Disk for the VM in GiB [{{.disk}}]:"
 [pick_new_help]
 other = "Choose what {{.vm}} gets. Use up and down to move, space to toggle and enter to confirm."
 
+[pick_more]
+description = "count is how many of a list's lines are above or below what the terminal shows"
+one = "{{.count}} more"
+other = "{{.count}} more"
+
+[pick_failed]
+description = "reason is an error from the system, in English"
+other = "The list couldn't show, because the terminal didn't let devvm read single keys: {{.reason}}."
+
 [pick_vm_help]
 other = "Choose {{.vm}}'s shared tools. Its layers are greyed out, and devvm layer add and devvm layer rm change them. Use up and down to move, space to toggle and enter to confirm."
 
@@ -1654,11 +1669,19 @@ other = "{{.vm}} is learning the hosts it reaches, so devvm network lock puts it
 other = "{{.vm}} isn't learning the hosts it reaches, so there's nothing to lock. To start, run devvm network learn."
 
 [net_lock_help]
-other = "Choose the hosts {{.vm}} keeps. Use up and down to move, space to toggle and enter to confirm."
+other = "Choose the hosts {{.vm}} keeps. Use up and down to move, space to toggle, a to toggle them all and enter to confirm."
 
 [net_lock_context]
 description = "since is when the VM started learning, as YYYY-MM-DD HH:MM in this machine's time"
-other = "Since {{.since}} the VM could reach any public host, so this list can hold a host that a compromised dependency reached. Read each one, because devvm allows only those ticked, and addresses, paste sites and file storage start unticked."
+other = "Since {{.since}} the VM could reach any public host, so this list can hold a host that a compromised dependency reached. Only a host under a domain its allowlist has already starts ticked, so read the others before you tick them."
+
+[net_lock_context_many]
+description = "count is how many hosts the VM learned; since is when it started learning, as YYYY-MM-DD HH:MM in this machine's time"
+one = "Since {{.since}} the VM could reach any public host, so this list of {{.count}} host can hold one that a compromised dependency reached. None starts ticked in a list this long, and devvm network lock --json lists them to read first."
+other = "Since {{.since}} the VM could reach any public host, so this list of {{.count}} hosts can hold one that a compromised dependency reached. None starts ticked in a list this long, and devvm network lock --json lists them to read first."
+
+[net_lock_changed]
+other = "{{.vm}}'s network tier changed while devvm network lock was asking, so it changed nothing. To lock it, run devvm network lock again."
 
 [net_learned_partial]
 description = "since is when the VM started learning, as YYYY-MM-DD HH:MM in this machine's time"
@@ -1669,22 +1692,22 @@ one = "Added {{.count}} host to {{.vm}}'s own rules, and gave it the allowlist t
 other = "Added {{.count}} hosts to {{.vm}}'s own rules, and gave it the allowlist tier."
 
 [net_learned_host]
-description = "agent is the tool that reached the host most, as its User-Agent names it: npm/10.9.2"
-one = "{{.count}} connection, by {{.agent}}"
-other = "{{.count}} connections, by {{.agent}}"
+description = "agent is the first word of the User-Agent that reached the host most, as the VM sent it: npm/10.9.2"
+one = "{{.count}} connection, User-Agent: {{.agent}}"
+other = "{{.count}} connections, User-Agent: {{.agent}}"
 
 [net_learned_host_anon]
 one = "{{.count}} connection"
 other = "{{.count}} connections"
 
 [net_learned_risky]
-description = "agent is the tool that reached the host most, as its User-Agent names it: curl/8.5.0"
-one = "{{.count}} connection, by {{.agent}}, unticked because it can send data out"
-other = "{{.count}} connections, by {{.agent}}, unticked because it can send data out"
+description = "agent is the first word of the User-Agent that reached the host most, as the VM sent it: curl/8.5.0"
+one = "{{.count}} connection, User-Agent: {{.agent}}, risky: it can send data out"
+other = "{{.count}} connections, User-Agent: {{.agent}}, risky: it can send data out"
 
 [net_learned_risky_anon]
-one = "{{.count}} connection, unticked because it can send data out"
-other = "{{.count}} connections, unticked because it can send data out"
+one = "{{.count}} connection, risky: it can send data out"
+other = "{{.count}} connections, risky: it can send data out"
 
 [log_empty]
 other = "{{.vm}}'s network log is empty so far."

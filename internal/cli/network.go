@@ -26,7 +26,7 @@ func newNetworkCmd(a *app) *cobra.Command {
 		Short: "Show or change the network tier of this folder's VM",
 		Long: "Show the network tier of this folder's VM, which is open, internet, allowlist, none or unenforced, and then its allowlist, policy by policy: devvm's built-in ones by name, then your files by path. " +
 			"With a tier, give the VM that tier: between the confined tiers at once, and into or out of open from the VM's next start, so in a terminal devvm offers to restart a running VM now, and learn gives it the internet tier while it learns the hosts it reaches, until devvm network lock. " +
-			"With -g, show or change the tier new VMs get, allowlist unless you change it.",
+			"With -g, show or change the tier new VMs get, allowlist unless you change it, which is never learn, because each VM learns on its own.",
 		Example: examples(
 			"devvm network", "show the VM's network tier and allowlist",
 			"devvm network allow example.com", "let the VM reach example.com",
@@ -41,6 +41,10 @@ func newNetworkCmd(a *app) *cobra.Command {
 			}
 			if !slices.Contains(choices(), args[0]) {
 				return msg.ArgNotChoice(strings.Join(choices(), ", "), cmd.CommandPath(), args[0])
+			}
+			// Each VM learns on its own: no default makes new VMs learn.
+			if g, _ := cmd.Flags().GetBool("global"); g && args[0] == netpolicy.Learn {
+				return msg.NetLearnNotGlobal()
 			}
 			return nil
 		}),
@@ -354,18 +358,20 @@ type lockOutput struct {
 	Hosts         []learnedJSON `json:"hosts"`
 }
 
-// learnedJSON is a host a VM learned: the rule devvm network allow takes
+// learnedJSON is a host a VM learned: the rule devvm network lock adds
 // for it, its host and port, how many connections it had, when it was
-// last reached, the tool that reached it most, and why it's risky
-// (address, paste or storage), if it is.
+// last reached, the User-Agent's tool that reached it most, whether its
+// domain is one the allowlist has already, so it starts ticked, and why
+// it's risky (netpolicy's Risk), if it is.
 type learnedJSON struct {
-	Rule  string `json:"rule"`
-	Host  string `json:"host"`
-	Port  int    `json:"port"`
-	Count int    `json:"count"`
-	Last  string `json:"last"`
-	Agent string `json:"agent,omitempty"`
-	Risk  string `json:"risk,omitempty"`
+	Rule        string `json:"rule"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	Count       int    `json:"count"`
+	Last        string `json:"last"`
+	Agent       string `json:"agent,omitempty"`
+	KnownDomain bool   `json:"known_domain,omitempty"`
+	Risk        string `json:"risk,omitempty"`
 }
 
 // printLockJSON writes what the folder's VM learned as lockOutput.
@@ -385,7 +391,7 @@ func lockJSON(l netpolicy.LearnedHosts) lockOutput {
 	out := lockOutput{LearningSince: jsonTime(l.Since), Partial: l.Partial, Hosts: make([]learnedJSON, 0, len(l.Hosts))}
 	for _, h := range l.Hosts {
 		out.Hosts = append(out.Hosts, learnedJSON{
-			Rule: h.Rule, Host: h.Host, Port: h.Port, Count: h.Count, Last: h.Last, Agent: h.Agent, Risk: string(h.Risk),
+			Rule: h.Rule, Host: h.Host, Port: h.Port, Count: h.Count, Last: h.Last, Agent: h.Agent, KnownDomain: h.Known, Risk: string(h.Risk),
 		})
 	}
 	return out

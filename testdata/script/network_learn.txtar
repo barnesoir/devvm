@@ -40,13 +40,15 @@ exec devvm network --json
 stdout '^  "policy": "internet",\n  "learning_since": "\d{4}-'
 
 # What it reached: its launch counts the hosts beyond its allowlist,
-# leaving out github.com, which devvm's rules allow, a private address,
-# blocks and what came before it learned.
+# leaving out github.com, which devvm's rules allow, a host your rules
+# deny, a private address, blocks and what came before it learned.
+cp $WORK/deny.policy $CFG/policy
 exec sh -c 'mkdir -p "$L_dir/logs" && cp "$WORK/events.jsonl" "$L_dir/logs/network.jsonl"'
 exec devvm
-stderr '^net_learning count=4 since=\S+ \S+ vm=devvm-learn-[0-9a-f]{14}$'
+stderr '^net_learning count=5 since=\S+ \S+ vm=devvm-learn-[0-9a-f]{14}$'
 
-# --json lists them, the risky last, and changes nothing.
+# --json lists them, each with its exact port, those under a domain the
+# allowlist has first and the risky last, and changes nothing.
 exec devvm network lock --json
 stdout '^  "learning_since": "\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ",$'
 exec sh -c 'devvm network lock --json | grep -v "\"learning_since\""'
@@ -71,20 +73,21 @@ vm_state $L_dir/vm.json
 stdout '^net\.tier=internet$'
 ! exists $L_dir/policy
 
-# In a terminal: the context, then the picker, every host ticked but the
-# risky ones, each with its connections and the tool that made them;
-# k, which wraps to the last row, and the space tick pastebin.com too, and
-# what's ticked is added.
+# In a terminal: the context, then the picker, only the host under a
+# domain the allowlist has ticked, each with its connections and its
+# User-Agent, the risky ones marked; j and the space tick example.com
+# too, and what's ticked is added.
 env DEVVM_PICK_ON_PIPE=1
 ttyin -stdin $WORK/pick.txt
 exec devvm network lock
 stdout '^net_lock_context since=\S+ \S+$'
 stdout 'net_lock_help vm=devvm-learn-[0-9a-f]{14}\r$'
-stdout '\[x\] example\.com +net_learned_host agent=curl/8\.5\.0 count=2'
-stdout '\[x\] new\.test:8080 +net_learned_host_anon count=1'
-stdout '\[ \] pastebin\.com +net_learned_risky agent=curl/8\.5\.0 count=1'
-stdout '\[ \] 203\.0\.113\.5 +net_learned_risky_anon count=1'
-stdout '==> net_locked count=3 vm=devvm-learn-[0-9a-f]{14}$'
+stdout '\[x\] uploads\.github\.com:443 +net_learned_host_anon count=1'
+stdout '\[ \] example\.com:443 +net_learned_host agent=curl/8\.5\.0 count=2'
+stdout '\[ \] new\.test:8080 +net_learned_host_anon count=1'
+stdout '\[ \] pastebin\.com:443 +net_learned_risky agent=curl/8\.5\.0 count=1'
+stdout '\[ \] 203\.0\.113\.5:443 +net_learned_risky_anon count=1'
+stdout '==> net_locked count=2 vm=devvm-learn-[0-9a-f]{14}$'
 stdout '^==> setting_applied vm=devvm-learn-[0-9a-f]{14}$'
 cmp $L_dir/policy $WORK/policy
 vm_state $L_dir/vm.json
@@ -119,7 +122,7 @@ stdout '^net\.tier=internet$'
 exec devvm network learn
 exec sh -c 'cp "$WORK/events.jsonl" "$L_dir/logs/network.jsonl" && rm "$L_dir/policy"'
 exec devvm network lock --all
-stdout '^==> net_locked count=4 vm=devvm-learn-[0-9a-f]{14}$'
+stdout '^==> net_locked count=5 vm=devvm-learn-[0-9a-f]{14}$'
 cmp $L_dir/policy $WORK/policy-all
 project none
 exec devvm --network learn --no-git-protect
@@ -130,26 +133,23 @@ stdout '^==> net_locked count=0 vm=devvm-none-[0-9a-f]{14}$'
 vm_state $N_dir/vm.json
 stdout '^net\.tier=allowlist$'
 
-# new VMs can learn by default: devvm network -g learn, which a new VM's
-# summary shows, and --network with a tier still chooses for one VM.
-exec devvm network -g learn
-stdout '^==> network_default mode=learn$'
+# Learning is for one VM at a time: no default makes new VMs learn, so
+# devvm network -g learn is refused, naming how to make one learn, and
+# config.toml can't set it.
+! exec devvm network -g learn
+stderr '^devvm: net_learn_not_global$'
+stderr 'usage_help command=devvm network'
 exec devvm network -g
-stdout '^learn # '
-project def
-exec devvm --no-git-protect
-stdout '^new_vm_network_learn$'
-vm_name D def
-vm_state $D_dir/vm.json
-stdout '^net\.learning\.since='
-project tier
-exec devvm --network internet --no-git-protect
-stdout '^new_vm_network tier=internet$'
-vm_name T tier
-vm_state $T_dir/vm.json
-! stdout learning
-exec devvm network -g allowlist
+stdout '^allowlist # '
+cp $WORK/config-learn.toml $CFG/config.toml
+! exec devvm network -g
+stderr '"learn" isn''t one of open, internet, allowlist, none'
+rm $CFG/config.toml
 
+-- deny.policy --
+!denied.test
+-- config-learn.toml --
+network = "learn"
 -- events.jsonl --
 {"time":"2001-01-01T00:00:00Z","vm":"x","event":"tunnel","host":"before.test","port":443}
 {"time":"2099-01-01T00:00:00Z","vm":"x","event":"learn","host":"","port":0}
@@ -161,12 +161,22 @@ exec devvm network -g allowlist
 {"time":"2099-01-01T00:00:06Z","vm":"x","event":"tunnel","host":"10.0.0.5","port":22,"method":"CONNECT"}
 {"time":"2099-01-01T00:00:07Z","vm":"x","event":"tunnel","host":"github.com","port":443,"method":"CONNECT"}
 {"time":"2099-01-01T00:00:08Z","vm":"x","event":"blocked","host":"blocked.test","port":443,"method":"CONNECT","reason":"denied by !blocked.test"}
+{"time":"2099-01-01T00:00:09Z","vm":"x","event":"tunnel","host":"uploads.github.com","port":443,"method":"CONNECT"}
+{"time":"2099-01-01T00:00:10Z","vm":"x","event":"tunnel","host":"denied.test","port":443,"method":"CONNECT"}
 -- learned.json --
 {
   "version": 1,
   "hosts": [
     {
-      "rule": "example.com",
+      "rule": "uploads.github.com:443",
+      "host": "uploads.github.com",
+      "port": 443,
+      "count": 1,
+      "last": "2099-01-01T00:00:09Z",
+      "known_domain": true
+    },
+    {
+      "rule": "example.com:443",
       "host": "example.com",
       "port": 443,
       "count": 2,
@@ -181,7 +191,7 @@ exec devvm network -g allowlist
       "last": "2099-01-01T00:00:03Z"
     },
     {
-      "rule": "203.0.113.5",
+      "rule": "203.0.113.5:443",
       "host": "203.0.113.5",
       "port": 443,
       "count": 1,
@@ -189,7 +199,7 @@ exec devvm network -g allowlist
       "risk": "address"
     },
     {
-      "rule": "pastebin.com",
+      "rule": "pastebin.com:443",
       "host": "pastebin.com",
       "port": 443,
       "count": 1,
@@ -200,13 +210,13 @@ exec devvm network -g allowlist
   ]
 }
 -- pick.txt --
-k k
+j j
 -- policy --
-example.com
-new.test:8080
-pastebin.com
+uploads.github.com:443
+example.com:443
 -- policy-all --
-example.com
+uploads.github.com:443
+example.com:443
 new.test:8080
-203.0.113.5
-pastebin.com
+203.0.113.5:443
+pastebin.com:443

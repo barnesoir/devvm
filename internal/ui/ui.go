@@ -41,6 +41,9 @@ type UI struct {
 	outStyle, errStyle style
 	// termWidth is the terminal's width in columns, 0 when unknown.
 	termWidth func() int
+	// termSize is the width and height of the terminal on stdout, where
+	// the picker draws, each 0 when unknown.
+	termSize func() (width, height int)
 	// readPassword reads a line from the terminal without echoing it.
 	readPassword func() (string, error)
 	// rawInput puts the terminal devvm reads from into raw mode, returning
@@ -97,7 +100,7 @@ type UI struct {
 func New(stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) *UI {
 	u := &UI{
 		stdout: stdout, stderr: stderr, stdin: bufio.NewReader(stdin),
-		termWidth: func() int { return 0 }, rawInput: rawTerminal,
+		termWidth: func() int { return 0 }, termSize: func() (int, int) { return 0, 0 }, rawInput: rawTerminal,
 		getenv: getenv, runLogs: runLogs, interruptGrace: time.Second,
 	}
 	u.outStyle, u.errStyle = newStyle(u.getenv, false), newStyle(u.getenv, false)
@@ -116,6 +119,13 @@ func onTerminal() *UI {
 			return 0
 		}
 		return w
+	}
+	u.termSize = func() (int, int) {
+		w, h, err := term.GetSize(fd(os.Stdout))
+		if err != nil {
+			return 0, 0
+		}
+		return w, h
 	}
 	return u
 }

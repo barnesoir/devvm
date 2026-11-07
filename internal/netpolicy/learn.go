@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"maps"
 	"net/netip"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -17,76 +18,24 @@ import (
 	"github.com/devvmhq/devvm/internal/tools"
 )
 
-// Risk is why devvm network lock leaves a learned host unticked: each is
-// an easy way to send data out. "" for none.
-type Risk string
-
-// The risks, as devvm network lock --json names them.
-const (
-	RiskAddress Risk = "address" // an address, not a name
-	RiskPaste   Risk = "paste"   // a paste site
-	RiskStorage Risk = "storage" // file storage or file sharing
-)
-
-// riskyHosts are the paste sites and file storage hosts devvm network
-// lock leaves unticked, each matched as itself and as any of its
-// subdomains: few, and well known, as the docs say. devvm's own rules
-// leave them out too (layers/base.policy).
-func riskyHosts() map[string]Risk {
-	return map[string]Risk{
-		"pastebin.com": RiskPaste, "paste.ee": RiskPaste, "hastebin.com": RiskPaste, "termbin.com": RiskPaste,
-		"dpaste.org": RiskPaste, "paste.rs": RiskPaste, "rentry.co": RiskPaste, "ghostbin.site": RiskPaste,
-		"gist.githubusercontent.com": RiskPaste, "webhook.site": RiskPaste,
-		"transfer.sh": RiskStorage, "file.io": RiskStorage, "0x0.st": RiskStorage, "temp.sh": RiskStorage,
-		"catbox.moe": RiskStorage, "wetransfer.com": RiskStorage, "mega.nz": RiskStorage,
-		"dropbox.com": RiskStorage, "dropboxusercontent.com": RiskStorage, "drive.google.com": RiskStorage,
-		"storage.googleapis.com": RiskStorage, "blob.core.windows.net": RiskStorage,
-		"r2.cloudflarestorage.com": RiskStorage, "s3.amazonaws.com": RiskStorage,
-	}
-}
-
-// RiskOf returns why host is risky to allow (Risk): an address, a host of
-// riskyHosts or under one, or one of S3's regional hosts
-// (bucket.s3.us-east-1.amazonaws.com); "" for any other.
-func RiskOf(host string) Risk {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	if _, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil {
-		return RiskAddress
-	}
-	risky := riskyHosts()
-	for h := host; h != ""; {
-		if r, ok := risky[h]; ok {
-			return r
-		}
-		_, rest, ok := strings.Cut(h, ".")
-		if !ok {
-			break
-		}
-		h = rest
-	}
-	if strings.HasSuffix(host, ".amazonaws.com") && slices.ContainsFunc(strings.Split(host, "."), func(l string) bool {
-		return l == "s3" || strings.HasPrefix(l, "s3-") || strings.HasPrefix(l, "s3.")
-	}) {
-		return RiskStorage
-	}
-	return ""
-}
-
 // Learned is a host and port a learning VM reached that its allowlist
 // tier doesn't allow, as devvm network lock offers it.
 type Learned struct {
-	Rule  string // the rule devvm network allow takes for it (proxy.AllowRule)
+	Rule  string // the rule devvm network lock adds for it (proxy.ExactRule)
 	Host  string
 	Port  int
 	Count int    // the connections and requests its proxy allowed
 	Last  string // when it was last reached, as the log has it
-	Agent string // the tool its requests named most (their User-Agent's first word), "" for none
+	Agent string // the tool its requests named most (agentWord), "" for none
+	// Known is whether its registrable domain (Domain) is one a host its
+	// allowlist tier allows has.
+	Known bool
 	Risk  Risk
 }
 
 // LearnedHosts is what a learning VM reached, since it started learning,
-// that its allowlist tier doesn't allow: the hosts without a risk first,
-// then the risky ones, each by its rule.
+// that its allowlist tier doesn't allow: the hosts under a known domain
+// first, then the others, then the risky ones, each by its rule.
 type LearnedHosts struct {
 	Since time.Time
 	Hosts []Learned
@@ -94,6 +43,15 @@ type LearnedHosts struct {
 	// rotated it past its limit, keeping one older file, and the mark of
 	// the VM starting to learn is gone with the file before.
 	Partial bool
+}
+
+// Judge is how Learned judges a host and port, by the VM's policies on
+// the allowlist tier: whether they allow it already, and whether they
+// deny it, so no allow would reach it; Domains are the registrable
+// domains (Domain) of the hosts their allow rules name.
+type Judge struct {
+	Allows, Denies func(host string, port int) bool
+	Domains        map[string]bool
 }
 
 // Learned returns what st's VM reached since it started learning that its
@@ -111,13 +69,17 @@ func (p *Proxy) Learned(st *state.VM) (LearnedHosts, error) {
 	if err != nil {
 		return LearnedHosts{}, err
 	}
-	return NewLog(p.Dirs, vm).Learned(lr.Since, al.Allows)
+	j := Judge{Allows: al.Allows, Denies: al.Denies, Domains: map[string]bool{}}
+	for _, h := range al.Hosts() {
+		j.Domains[Domain(h)] = true
+	}
+	return NewLog(p.Dirs, vm).Learned(lr.Since, j)
 }
 
 // reached is whether an event is a connection or request the proxy let
 // through to its host: a tunnel, a decrypted one, or a forwarded request.
-func reached(e Event) bool {
-	return e.Event == "tunnel" || e.Event == "intercept" || e.Event == "forward"
+func reached(event string) bool {
+	return event == "tunnel" || event == "intercept" || event == "forward"
 }
 
 // learnEvent is the event devvm writes in a VM's log as the VM starts
@@ -129,46 +91,113 @@ const learnEvent = "learn"
 // through the proxy's own writer (AppendEvent).
 func (l *Log) MarkLearning(vm string) error { return AppendEvent(l.Path, vm, Event{Event: learnEvent}) }
 
+// learnedEvent is what Learned reads of an event: only these.
+type learnedEvent struct {
+	Time, Event, Host, Agent string
+	Port                     int
+}
+
+// readEvent reads what Learned needs of a line of the log; false for a
+// line that isn't an event.
+func readEvent(line string) (learnedEvent, bool) {
+	var e learnedEvent
+	return e, json.Unmarshal([]byte(line), &e) == nil && e.Event != ""
+}
+
+// countMax is the most of a VM's log a launch's reminder reads to count
+// the hosts the VM learned, both files: past it the reminder doesn't
+// count, so a launch never parses all 20 MiB a log can hold.
+const countMax = 2 << 20
+
+// Countable reports whether the log is small enough for a launch's
+// reminder to count the hosts its VM learned (countMax).
+func (l *Log) Countable() bool {
+	var n int64
+	for _, p := range []string{l.Path, l.Old()} {
+		if fi, err := os.Stat(p); err == nil {
+			n += fi.Size()
+		}
+	}
+	return n <= countMax
+}
+
+// learning is what Learned has counted so far: a row for each rule, the
+// tools that reached each, and the rules it left out, each judged once.
+type learning struct {
+	j       Judge
+	rows    map[reachedKey]*Learned
+	agents  map[reachedKey]map[string]int
+	skipped map[reachedKey]bool
+}
+
+// add counts e, a host reached, unless it's left out: a host the policy
+// doesn't take, an address that isn't public, or a host the allowlist
+// allows already or denies.
+func (c *learning) add(e learnedEvent) {
+	k := reachedKey{e.Host, e.Port}
+	if c.skipped[k] {
+		return
+	}
+	r := c.rows[k]
+	if r == nil {
+		rule, ok := proxy.ExactRule(e.Host, e.Port)
+		a, err := netip.ParseAddr(strings.Trim(e.Host, "[]"))
+		if !ok || err == nil && !proxy.Public(a) || c.j.Allows(e.Host, e.Port) || c.j.Denies(e.Host, e.Port) {
+			c.skipped[k] = true
+			return
+		}
+		r = &Learned{Rule: rule, Host: e.Host, Port: e.Port, Known: c.j.Domains[Domain(e.Host)], Risk: RiskOf(e.Host)}
+		c.rows[k], c.agents[k] = r, map[string]int{}
+	}
+	r.Count++
+	r.Last = e.Time
+	if a := agentWord(e.Agent); a != "" {
+		c.agents[k][a]++
+	}
+}
+
+// reachedKey is a host and port as the log has them, which Learned counts
+// by.
+type reachedKey struct {
+	host string
+	port int
+}
+
+// after reports whether at, an event's time, isn't before from, given as
+// RFC 3339 in UTC (fromText too): compared as text when at is in the same
+// form, as the proxy writes it, which is the same order and much quicker
+// than parsing every line's.
+func after(at, fromText string, from time.Time) bool {
+	if len(at) == len(fromText) && strings.HasSuffix(at, "Z") {
+		return at >= fromText
+	}
+	t, err := time.Parse(time.RFC3339, at)
+	return err == nil && !t.Before(from)
+}
+
 // Learned returns the hosts and ports the log's VM reached since then
-// (the previous file's too) that allowed doesn't allow, one per rule: an
-// address that isn't public is left out, as is a host the policy doesn't
-// take. A log that isn't there has none; one without the mark of the VM
-// starting to learn then (MarkLearning), which the proxy's rotation
-// dropped, is partial.
-func (l *Log) Learned(since time.Time, allowed func(host string, port int) bool) (LearnedHosts, error) {
+// (the previous file's too) that j doesn't allow or deny, one per rule,
+// each judged once: an address that isn't public is left out, as is a
+// host the policy doesn't take. A log that isn't there has none; one
+// without the mark of the VM starting to learn then (MarkLearning), which
+// the proxy's rotation dropped, is partial.
+func (l *Log) Learned(since time.Time, j Judge) (LearnedHosts, error) {
 	out := LearnedHosts{Since: since}
 	from := since.Truncate(time.Second)
-	rows := map[string]*Learned{}
-	agents := map[string]map[string]int{}
+	fromText := from.UTC().Format(time.RFC3339)
+	c := learning{j: j, rows: map[reachedKey]*Learned{}, agents: map[reachedKey]map[string]int{}, skipped: map[reachedKey]bool{}}
 	marked := false
 	err := l.each(func(line string) {
-		var e Event
-		if json.Unmarshal([]byte(line), &e) != nil || e.Event == "" {
+		e, ok := readEvent(line)
+		if !ok {
 			return
 		}
-		at, err := time.Parse(time.RFC3339, e.Time)
-		if err != nil || at.Before(from) {
-			return
-		}
-		if e.Event == learnEvent {
+		switch {
+		case !after(e.Time, fromText, from):
+		case e.Event == learnEvent:
 			marked = true
-		}
-		if !reached(e) {
-			return
-		}
-		rule, ok := proxy.AllowRule(e.Host, e.Port)
-		if a, err := netip.ParseAddr(strings.Trim(e.Host, "[]")); !ok || err == nil && !proxy.Public(a) || allowed(e.Host, e.Port) {
-			return
-		}
-		r := rows[rule]
-		if r == nil {
-			r = &Learned{Rule: rule, Host: e.Host, Port: e.Port, Risk: RiskOf(e.Host)}
-			rows[rule], agents[rule] = r, map[string]int{}
-		}
-		r.Count++
-		r.Last = e.Time
-		if a := agentWord(e.Agent); a != "" {
-			agents[rule][a]++
+		case reached(e.Event):
+			c.add(e)
 		}
 	})
 	if errors.Is(err, fs.ErrNotExist) {
@@ -177,37 +206,46 @@ func (l *Log) Learned(since time.Time, allowed func(host string, port int) bool)
 		return out, err
 	}
 	out.Partial = !marked
-	for rule, r := range rows {
-		r.Agent = mostOf(agents[rule])
+	for k, r := range c.rows {
+		r.Agent = mostOf(c.agents[k])
 		out.Hosts = append(out.Hosts, *r)
 	}
-	slices.SortFunc(out.Hosts, func(a, b Learned) int {
-		risky := func(l Learned) int {
-			if l.Risk != "" {
-				return 1
-			}
-			return 0
-		}
-		return cmp.Or(cmp.Compare(risky(a), risky(b)), cmp.Compare(a.Rule, b.Rule))
-	})
+	slices.SortFunc(out.Hosts, func(a, b Learned) int { return cmp.Or(cmp.Compare(rank(a), rank(b)), cmp.Compare(a.Rule, b.Rule)) })
 	return out, nil
 }
 
-// agentMax bounds the tool a learned host shows, so a long User-Agent
-// can't push its row off the terminal.
-const agentMax = 40
+// rank is where a learned host goes in the list: under a known domain
+// first, then the others, then the risky ones.
+func rank(l Learned) int {
+	switch {
+	case l.Risk != "":
+		return 2
+	case l.Known:
+		return 0
+	}
+	return 1
+}
+
+// Ticked is whether the lock's list starts with h ticked: under a known
+// domain, and not risky.
+func (h Learned) Ticked() bool { return h.Known && h.Risk == "" }
+
+// agentMax bounds the tool a learned host shows.
+const agentMax = 32
 
 // agentWord is the tool a User-Agent names: its first word, such as
-// npm/10.9.2 or curl/8.5.0, at most agentMax runes.
+// npm/10.9.2 or curl/8.5.0, when it's at most agentMax characters, each
+// a letter, a digit or one of ._/+-; else "". The VM chose it, so nothing
+// else is shown, such as characters that look like others or take no
+// room.
 func agentWord(ua string) string {
-	f := strings.Fields(ua)
-	if len(f) == 0 {
+	w, _, _ := strings.Cut(strings.TrimLeft(ua, " \t"), " ")
+	if w == "" || len(w) > agentMax || strings.ContainsFunc(w, func(c rune) bool {
+		return (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune("._/+-", c)
+	}) {
 		return ""
 	}
-	if r := []rune(f[0]); len(r) > agentMax {
-		return string(r[:agentMax])
-	}
-	return f[0]
+	return w
 }
 
 // mostOf is the key counted most, the first by name of those counted as

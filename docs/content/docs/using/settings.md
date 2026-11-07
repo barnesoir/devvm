@@ -27,7 +27,7 @@ Upgrading devvm keeps this folder as it is. Back it up, such as in a dotfiles re
 `~/.config/devvm/config.toml` sets the defaults that new VMs get, the retention settings, the company proxy, an Ubuntu mirror and the release check, in a file you write by hand. devvm reads it and never writes it. Every key is optional, and devvm has no `config.toml` until you write one. This example sets every key:
 
 ```toml
-# The network tier new VMs get: open, internet, learn, allowlist or none.
+# The network tier new VMs get: open, internet, allowlist or none.
 network = "allowlist"
 
 # The ports new VMs forward: all, none, or ports and ranges.
@@ -70,7 +70,7 @@ http = "http://alice@proxy.example.com:8080"
 no-proxy = "localhost,.example.com"
 ```
 
-Each key takes what its command takes. `network` is a tier, `open`, `internet`, `allowlist` or `none`, or `learn` for internet while a new VM [learns the hosts it needs](../safety/network.md#learning-the-hosts-a-vm-needs), as `devvm network -g` sets it ([choosing a tier](../safety/network.md#choosing-a-tier)). `ports` is `all`, `none` or a list, as `devvm ports -g` takes it ([size and ports](ports-size.md#size-and-ports)). `features` lists the [features](customizing.md#choosing-features) that base gets, `agents` the [coding agents](#coding-agents-for-new-vms) that new VMs get, and `layers` the [layers](#layers-for-new-vms) that new VMs get, bottom first. `cpus` is a whole number, and `memory` and `disk` are a number of GiB, such as `8`, `8.5` or `"8G"`, as `devvm size -g` takes them. The `[retention]` keys are the [retention settings](#retention), with a duration such as `"90d"` or a size such as `"20G"` in quotes, and a count as a number.
+Each key takes what its command takes. `network` is a tier, `open`, `internet`, `allowlist` or `none`, as `devvm network -g` sets it ([choosing a tier](../safety/network.md#choosing-a-tier)), and never `learn`, because each VM [learns the hosts it needs](../safety/network.md#learning-the-hosts-a-vm-needs) on its own. `ports` is `all`, `none` or a list, as `devvm ports -g` takes it ([size and ports](ports-size.md#size-and-ports)). `features` lists the [features](customizing.md#choosing-features) that base gets, `agents` the [coding agents](#coding-agents-for-new-vms) that new VMs get, and `layers` the [layers](#layers-for-new-vms) that new VMs get, bottom first. `cpus` is a whole number, and `memory` and `disk` are a number of GiB, such as `8`, `8.5` or `"8G"`, as `devvm size -g` takes them. The `[retention]` keys are the [retention settings](#retention), with a duration such as `"90d"` or a size such as `"20G"` in quotes, and a count as a number.
 
 The `[proxy]` table is the [company proxy](../safety/network.md#behind-a-company-proxy) that every VM's proxy, builds and devvm's own downloads go through when the shell you run devvm in sets neither `HTTPS_PROXY` nor `HTTP_PROXY`, whatever the VM's tier. No VM gets the company proxy's settings itself. That shell's settings win over the whole table. `https` and `http` take what `HTTPS_PROXY` and `HTTP_PROXY` take, an `http://` URL or `host:port`, and `no-proxy` takes what `NO_PROXY` takes. A URL never holds a password, and devvm refuses one that does, so put only the user in it and save the password with `devvm secret set proxy`. No command saves the proxy, so it's only ever in `config.toml`.
 
@@ -118,7 +118,7 @@ devvm reads all of `config.toml` each time it needs a default, and it checks eve
 
 1. The [features](customizing.md#choosing-features) that base gets.
 2. The [CPUs and memory](ports-size.md#choosing-new-vms-size) that new VMs get, as `devvm size -g` saves them.
-3. The [network tier](../safety/network.md#network-tiers) that new VMs get, as `devvm network -g` saves it: `open`, `internet`, `allowlist`, which is the default, or `none`, or `learn`, which gives each new VM the internet tier while it [learns the hosts it needs](../safety/network.md#learning-the-hosts-a-vm-needs), until you lock it. Each new VM's summary shows that tier, and when you customize the VM in a terminal, devvm asks for its tier, with Enter keeping the one the summary showed ([what a new VM gets](images.md#what-a-new-vm-gets)). `--network TIER` chooses for one VM and wins over the saved choice.
+3. The [network tier](../safety/network.md#network-tiers) that new VMs get, as `devvm network -g` saves it: `open`, `internet`, `allowlist`, which is the default, or `none`. Each new VM's summary shows that tier, and when you customize the VM in a terminal, devvm asks for its tier, with Enter keeping the one the summary showed ([what a new VM gets](images.md#what-a-new-vm-gets)). `--network TIER` chooses for one VM and wins over the saved choice.
 4. The [coding agents](#coding-agents-for-new-vms) that new VMs get.
 5. The [layers](#layers-for-new-vms) that new VMs get.
 

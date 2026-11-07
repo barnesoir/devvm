@@ -123,7 +123,8 @@ func (s starter) bringUp(ctx context.Context, t *target, o upOpts) (backend.Conf
 // remindLearning says, for a VM that learns the hosts it reaches, since
 // when, how many it found that its allowlist doesn't allow, and the
 // command that locks it to them; without the count when its log can't be
-// read. A VM just made says it learns from now on.
+// read, or is too long to read at every launch (Log.Countable). A VM just
+// made says it learns from now on.
 func (s starter) remindLearning(st *state.VM, made bool) {
 	lr := netpolicy.LearningOf(st)
 	if !lr.On() {
@@ -132,6 +133,10 @@ func (s starter) remindLearning(st *state.VM, made bool) {
 	vm, since := st.Name(), learnedSince(lr)
 	if made {
 		s.Info(msg.NetLearnStarted(vm))
+		return
+	}
+	if !netpolicy.NewLog(s.Dirs, vm).Countable() {
+		s.Note(msg.NetLearningSince(since, vm))
 		return
 	}
 	hosts, err := s.Proxy.Learned(st)

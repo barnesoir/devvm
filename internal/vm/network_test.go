@@ -240,12 +240,35 @@ func TestLock(t *testing.T) {
 	for _, h := range l.Hosts {
 		got = append(got, h.Rule+" "+strconv.Itoa(h.Count)+" "+h.Agent+" "+string(h.Risk))
 	}
-	if want := []string{"example.com 2 curl/8.5.0 ", "pastebin.com 1  paste"}; err != nil || !slices.Equal(got, want) {
+	if want := []string{"example.com:443 2 curl/8.5.0 ", "pastebin.com:80 1  paste"}; err != nil || !slices.Equal(got, want) {
 		t.Errorf("Learned = %q, %v; want %q", got, err, want)
 	}
 	if err := n.Lock(t.Context(), LockOptions{}); msg.NamesOf(err) != "no_input answer=--all or --none" {
 		t.Errorf("Lock without a terminal = %v", msg.NamesOf(err))
 	}
+	// A list that couldn't show: refused, nothing added on its first ticks.
+	fake(e).Picks = true
+	e.PickMany = func(_ msg.M, rows []PickRow) ([]PickRow, error) { return rows, msg.PickFailed("no tty") }
+	if err := n.Lock(t.Context(), LockOptions{}); msg.NamesOf(err) != "pick_failed reason=no tty" {
+		t.Errorf("Lock with a list that couldn't show = %v", msg.NamesOf(err))
+	}
+	// Another devvm changed its tier while the list was open: refused,
+	// nothing added, its tier as the other left it.
+	e.PickMany = func(_ msg.M, rows []PickRow) ([]PickRow, error) {
+		return rows, n.SetTier(t.Context(), netpolicy.TierInternet, "devvm network internet")
+	}
+	if err := n.Lock(t.Context(), LockOptions{}); msg.NamesOf(err) != "net_lock_changed vm="+vm {
+		t.Errorf("Lock after its tier changed = %v", msg.NamesOf(err))
+	}
+	if _, err := os.Stat(e.Dirs.VM(vm).Policy()); err == nil {
+		t.Error("a lock that changed nothing added rules")
+	}
+	fake(e).Picks, e.PickMany = false, nil
+	if err := n.Learn(t.Context(), "devvm network learn"); err != nil {
+		t.Fatal(msg.NamesOf(err))
+	}
+	st, _ = state.ReadVM(e.Dirs, vm)
+	learnedLog(t, e, vm, netpolicy.LearningOf(st).Since)
 	change(t, st, func(st *state.VM) error {
 		return edit(st, linksSection, func(l *linksInVM) error { l.Group = "web"; return nil })
 	})
@@ -264,7 +287,7 @@ func TestLock(t *testing.T) {
 	if got, want := said.Names(), []string{"net_locked count=2 vm=" + vm, "setting_applied vm=" + vm}; !slices.Equal(got, want) {
 		t.Errorf("said %q, want %q", got, want)
 	}
-	if b, _ := os.ReadFile(e.Dirs.VM(vm).Policy()); string(b) != "example.com\npastebin.com\n" {
+	if b, _ := os.ReadFile(e.Dirs.VM(vm).Policy()); string(b) != "example.com:443\npastebin.com:80\n" {
 		t.Errorf("its policy:\n%s", b)
 	}
 	st, _ = state.ReadVM(e.Dirs, vm)
@@ -276,32 +299,43 @@ func TestLock(t *testing.T) {
 	}
 }
 
-// The lock's picker starts with every host ticked but the risky ones,
-// after its context; what's ticked when it's confirmed is what's added.
-// --none adds nothing.
+// The lock's picker starts with a host ticked only when it's under a
+// known domain and not risky, after its context; what's ticked when it's
+// confirmed is what's added. Past lockTickMax hosts none starts ticked,
+// and the context says so. --none adds nothing.
 func TestChooseLearned(t *testing.T) {
 	l := netpolicy.LearnedHosts{Since: time.Now(), Hosts: []netpolicy.Learned{
-		{Rule: "a.test", Count: 3, Agent: "npm/10"},
-		{Rule: "b.test", Count: 1},
-		{Rule: "1.2.3.4", Count: 2, Risk: netpolicy.RiskAddress},
+		{Rule: "a.test:443", Count: 3, Agent: "npm/10", Known: true},
+		{Rule: "b.test:443", Count: 1},
+		{Rule: "1.2.3.4:443", Count: 2, Known: true, Risk: netpolicy.RiskAddress},
 	}}
 	var shown []string
-	e := &Env{Reporter: &msg.Fake{Picks: true}, PickParts: func(_ msg.M, parts []PickPart) []PickPart {
-		for i, r := range parts[0].Rows {
+	e := &Env{Reporter: &msg.Fake{Picks: true}, PickMany: func(_ msg.M, rows []PickRow) ([]PickRow, error) {
+		shown = nil
+		for i, r := range rows {
 			shown = append(shown, r.Name+" "+r.Desc.ID()+" "+strconv.FormatBool(r.On))
-			parts[0].Rows[i].On = r.Name != "b.test"
+			rows[i].On = r.Name != "b.test:443"
 		}
-		return parts
+		return rows, nil
 	}}
 	var said msg.Recorder
 	e.Reporter.(*msg.Fake).OnSay = said.Add
 	got, err := Net{e}.chooseLearned("vm", l, LockOptions{})
-	want := []string{"a.test net_learned_host true", "b.test net_learned_host_anon true", "1.2.3.4 net_learned_risky_anon false"}
-	if err != nil || !slices.Equal(shown, want) || !slices.Equal(got, []string{"a.test", "1.2.3.4"}) {
+	want := []string{"a.test:443 net_learned_host true", "b.test:443 net_learned_host_anon false", "1.2.3.4:443 net_learned_risky_anon false"}
+	if err != nil || !slices.Equal(shown, want) || !slices.Equal(got, []string{"a.test:443", "1.2.3.4:443"}) {
 		t.Errorf("shown %q, chose %q, %v", shown, got, err)
 	}
 	if len(said.Names()) != 1 || !strings.HasPrefix(said.Names()[0], "net_lock_context since=") {
 		t.Errorf("said %q", said.Names())
+	}
+	many := netpolicy.LearnedHosts{Since: l.Since}
+	for i := range lockTickMax + 1 {
+		many.Hosts = append(many.Hosts, netpolicy.Learned{Rule: "h" + strconv.Itoa(i) + ".test:443", Known: true})
+	}
+	said = msg.Recorder{}
+	if _, err := (Net{e}).chooseLearned("vm", many, LockOptions{}); err != nil || slices.ContainsFunc(shown, func(s string) bool { return strings.HasSuffix(s, " true") }) ||
+		len(said.Names()) != 1 || !strings.HasPrefix(said.Names()[0], "net_lock_context_many count=31 since=") {
+		t.Errorf("%d hosts: shown ticked, or said %q, %v", len(many.Hosts), said.Names(), err)
 	}
 	if got, err := (Net{e}).chooseLearned("vm", l, LockOptions{None: true}); err != nil || len(got) != 0 {
 		t.Errorf("--none: %q, %v", got, err)
@@ -315,7 +349,7 @@ func TestChooseLearned(t *testing.T) {
 		t.Errorf("partial: warned %q, %v", warned.Names(), err)
 	}
 	// --all takes every host, the risky ones too, unasked.
-	if got, err := (Net{e}).chooseLearned("vm", l, LockOptions{All: true}); err != nil || !slices.Equal(got, []string{"a.test", "b.test", "1.2.3.4"}) {
+	if got, err := (Net{e}).chooseLearned("vm", l, LockOptions{All: true}); err != nil || !slices.Equal(got, []string{"a.test:443", "b.test:443", "1.2.3.4:443"}) {
 		t.Errorf("--all: %q, %v", got, err)
 	}
 }

@@ -104,6 +104,23 @@ func pickParts(u *ui.UI) func(msg.M, []vm.PickPart) []vm.PickPart {
 	}
 }
 
+// pickMany is the VM environment's PickMany: the UI's PickChecked over
+// rows, without a heading.
+func pickMany(u *ui.UI) func(msg.M, []vm.PickRow) ([]vm.PickRow, error) {
+	return func(help msg.M, rows []vm.PickRow) ([]vm.PickRow, error) {
+		choices := make([]ui.Choice, len(rows))
+		for i, r := range rows {
+			choices[i] = ui.Choice{Name: r.Name, Desc: u.Text(r.Desc), On: r.On, Fixed: r.Fixed}
+		}
+		picked, err := u.PickChecked(help, []ui.Section{{Choices: choices}})
+		out := slices.Clone(rows)
+		for i := range out {
+			out[i].On = picked[0].Choices[i].On
+		}
+		return out, err
+	}
+}
+
 // pickOne is the VM environment's PickOne: the UI's PickOne over rows.
 func pickOne(u *ui.UI) func(msg.M, []vm.PickRow) int {
 	return func(help msg.M, rows []vm.PickRow) int {

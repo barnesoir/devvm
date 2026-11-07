@@ -501,6 +501,11 @@ func (e Groups) join(ctx context.Context, t *target, group, as string, members [
 // every backend has links.
 func (e Groups) checkJoin(t *target, group, as string) ([]*state.VM, error) {
 	vm := t.f.Name
+	// A learning VM goes to the allowlist tier once it's locked, which a
+	// group's VMs can't do alone.
+	if netpolicy.LearningOf(t.st).On() {
+		return nil, msg.GroupJoinLearning(group, vm)
+	}
 	members, err := groupMembers(e.Dirs, group)
 	if err != nil {
 		return nil, err

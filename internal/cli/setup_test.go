@@ -162,7 +162,7 @@ func TestSetupNetworkStartsFromSaved(t *testing.T) {
 	if err := s.run(setupChoice{}); err != nil {
 		t.Fatal(err)
 	}
-	want := "network open:net_tier_open *internet:net_tier_internet learn:net_choice_learn " +
+	want := "network open:net_tier_open *internet:net_tier_internet " +
 		"allowlist:net_tier_allowlist none:net_tier_none"
 	if !slices.Contains(*picked, want) {
 		t.Errorf("pickers %q, want %q", *picked, want)
@@ -195,7 +195,7 @@ func TestSetupAsks(t *testing.T) {
 			if tc.ask {
 				wantSized = []string{
 					"size_cpus_prompt cpus=4", "size_memory_prompt memory=8",
-					"network open:net_tier_open internet:net_tier_internet learn:net_choice_learn " +
+					"network open:net_tier_open internet:net_tier_internet " +
 						"*allowlist:net_tier_allowlist none:net_tier_none",
 					"agents_help", "layers_help",
 				}

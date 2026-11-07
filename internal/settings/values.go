@@ -62,12 +62,12 @@ func ParsePorts(v string) (string, error) {
 const NetworkDefault = "allowlist"
 
 // NetworkChoices are the network defaults, the tiers, in the order devvm
-// shows them, lowest to highest, with learn after internet: a VM that
-// learns the hosts it reaches on the internet tier. They are netpolicy's
-// (netpolicy.Choices, which imports this package), and netpolicy's tests
-// check the two lists match.
+// shows them, lowest to highest. They are netpolicy's (netpolicy.Tiers,
+// which imports this package), and netpolicy's tests check the two lists
+// match. Learning the hosts a VM needs is no default: each VM is made to
+// learn on its own.
 func NetworkChoices() []string {
-	return []string{"open", "internet", "learn", NetworkDefault, "none"}
+	return []string{"open", "internet", NetworkDefault, "none"}
 }
 
 // checkNetwork refuses a network default that isn't a tier.

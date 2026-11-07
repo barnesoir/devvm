@@ -255,6 +255,7 @@ func (e Net) Lock(ctx context.Context, o LockOptions) error {
 	if ok, err := e.checkTier(t, from, to, "devvm network lock"); !ok {
 		return err
 	}
+	was := netpolicy.LearningOf(st)
 	learned, err := e.Proxy.Learned(st)
 	if err != nil {
 		return err
@@ -265,30 +266,50 @@ func (e Net) Lock(ctx context.Context, o LockOptions) error {
 	}
 	file := e.Dirs.VM(vm).Policy()
 	added := 0
-	for _, r := range rules {
-		ok, err := netpolicy.AddRule(file, r)
-		if err != nil {
-			return err
+	// Under the VM's lock: the state as it is now, which another devvm may
+	// have changed while the list was open, still learning since then.
+	err = st.Update(ctx, func(st *state.VM) error {
+		if now := netpolicy.LearningOf(st); !now.On() || !now.Since.Equal(was.Since) {
+			return msg.NetLockChanged(vm)
 		}
-		if ok {
-			added++
+		for _, r := range rules {
+			ok, err := netpolicy.AddRule(file, r)
+			if err != nil {
+				return err
+			}
+			if ok {
+				added++
+			}
 		}
+		return netpolicy.SetTier(st, to, netpolicy.Learning{})
+	})
+	if err != nil {
+		return err
 	}
 	for _, m := range netpolicy.PolicyWarnings([]string{file}) {
 		e.Warn(m)
 	}
-	if err := st.Update(ctx, func(st *state.VM) error { return netpolicy.SetTier(st, to, netpolicy.Learning{}) }); err != nil {
+	e.Info(msg.NetLocked(added, vm))
+	// Whether it runs, as it does now.
+	if t.in, err = t.b.Inspect(ctx, vm); err != nil {
 		return err
 	}
-	e.Info(msg.NetLocked(added, vm))
 	return e.applyTier(ctx, t, from, to)
 }
 
+// lockTickMax is the most learned hosts the lock's list starts with any
+// ticked for: past it, none is, as nobody reads that many rows one by
+// one, and devvm points at --json.
+const lockTickMax = 30
+
 // chooseLearned returns the rules of the learned hosts that o chooses:
-// every one, none, or in a terminal those ticked in the picker, which
-// starts with every host but the risky ones ticked, after a line saying
-// that learning was internet access. Where the picker can't show, it's
-// refused, naming --all and --none. With no hosts, nothing is asked.
+// every one, none, or in a terminal those ticked in the picker, after a
+// line saying that learning was internet access. The picker starts with a
+// host ticked only when its domain is one the allowlist has already and
+// it isn't risky (Learned.Ticked), and with none ticked past lockTickMax
+// hosts. Where the picker can't show, it's refused, naming --all and
+// --none, and so it is when the terminal won't let it show, rather than
+// go on with the ticks it starts with. With no hosts, nothing is asked.
 func (e Net) chooseLearned(vm string, l netpolicy.LearnedHosts, o LockOptions) ([]string, error) {
 	var all []string
 	for _, h := range l.Hosts {
@@ -301,40 +322,47 @@ func (e Net) chooseLearned(vm string, l netpolicy.LearnedHosts, o LockOptions) (
 		return nil, nil
 	}
 	q := msg.NetLockHelp(vm).AnsweredBy("--all or --none")
-	if !e.CanPick() || e.PickParts == nil {
+	if !e.CanPick() || e.PickMany == nil {
 		return nil, q.Refused(false)
 	}
 	if l.Partial {
 		e.Warn(msg.NetLearnedPartial(learnedSince(netpolicy.Learning{Since: l.Since}), vm))
 	}
-	e.Say(msg.NetLockContext(learnedSince(netpolicy.Learning{Since: l.Since})))
+	since, many := learnedSince(netpolicy.Learning{Since: l.Since}), len(l.Hosts) > lockTickMax
+	if many {
+		e.Say(msg.NetLockContextMany(len(l.Hosts), since))
+	} else {
+		e.Say(msg.NetLockContext(since))
+	}
 	rows := make([]PickRow, len(l.Hosts))
 	for i, h := range l.Hosts {
-		rows[i] = PickRow{Name: h.Rule, Desc: learnedDesc(h), On: h.Risk == ""}
+		rows[i] = PickRow{Name: h.Rule, Desc: learnedDesc(h), On: h.Ticked() && !many}
+	}
+	picked, err := e.PickMany(q.M(), rows)
+	if err != nil {
+		return nil, err
 	}
 	var chosen []string
-	for _, p := range e.PickParts(q.M(), []PickPart{{Rows: rows}}) {
-		for _, r := range p.Rows {
-			if r.On {
-				chosen = append(chosen, r.Name)
-			}
+	for _, r := range picked {
+		if r.On {
+			chosen = append(chosen, r.Name)
 		}
 	}
 	return chosen, nil
 }
 
 // learnedDesc is what the lock's picker says of a learned host: how many
-// connections it had, the tool that made them most, and for a risky host
-// why it starts unticked.
+// connections it had, the User-Agent that made them most, as a word of a
+// tool name's characters alone (netpolicy's agentWord), and for a risky
+// host, that it can send data out.
 func learnedDesc(h netpolicy.Learned) msg.M {
-	agent := msg.Printable(h.Agent)
 	switch {
-	case h.Risk != "" && agent != "":
-		return msg.NetLearnedRisky(agent, h.Count)
+	case h.Risk != "" && h.Agent != "":
+		return msg.NetLearnedRisky(h.Agent, h.Count)
 	case h.Risk != "":
 		return msg.NetLearnedRiskyAnon(h.Count)
-	case agent != "":
-		return msg.NetLearnedHost(agent, h.Count)
+	case h.Agent != "":
+		return msg.NetLearnedHost(h.Agent, h.Count)
 	}
 	return msg.NetLearnedHostAnon(h.Count)
 }

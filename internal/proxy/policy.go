@@ -318,6 +318,9 @@ func (p *policy) decide(host string, port int) (bool, string) {
 	return ok, why
 }
 
+// deniedBy starts the reason of a refusal by a deny rule, which its text follows.
+const deniedBy = "denied by "
+
 // verdict is decide, and whether a refusal is one no allow rule would lift: a broken deny's.
 func (p *policy) verdict(host string, port int) (bool, string, bool) {
 	if p.open {
@@ -343,7 +346,7 @@ func (p *policy) verdict(host string, port int) (bool, string, bool) {
 	}
 	for _, r := range rs {
 		if r.deny && match(r) {
-			return false, "denied by " + r.text, false
+			return false, deniedBy + r.text, false
 		}
 	}
 	for _, r := range rs {
@@ -378,6 +381,36 @@ func ReadAllowlist(own fs.FS, builtin, files, denies []string) (Allowlist, error
 func (p Allowlist) Allows(host string, port int) bool {
 	ok, _, _ := p.p.verdict(host, port)
 	return ok
+}
+
+// Denies reports whether the policies deny host:port, so that no allow would lift it: a deny rule
+// matches it, or a file has a broken deny.
+func (p Allowlist) Denies(host string, port int) bool {
+	ok, why, refused := p.p.verdict(host, port)
+	return !ok && (refused || strings.HasPrefix(why, deniedBy))
+}
+
+// Hosts returns the host names the policies' allow rules name, *.domain's as domain, in their
+// order: no addresses, and not **.
+func (p Allowlist) Hosts() []string {
+	rs, _ := p.p.all()
+	var out []string
+	for _, r := range rs {
+		if !r.deny && r.host != "" && r.host != "**" {
+			out = append(out, strings.TrimPrefix(r.host, "*."))
+		}
+	}
+	return out
+}
+
+// ExactRule is the rule that allows host on port alone, as devvm network lock adds it: host:port, or
+// [address]:port for an IPv6 address, the port always written, so 443 doesn't allow 80 too. false
+// for a host the policy doesn't take (HostOK) or a port that isn't one.
+func ExactRule(host string, port int) (string, bool) {
+	if !HostOK(host) || port < 1 || port > 65535 {
+		return "", false
+	}
+	return net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port)), true
 }
 
 // byName: an allow rule that names host, as itself or under *.domain, for port: one that's more

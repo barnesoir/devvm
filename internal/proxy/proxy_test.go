@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -24,6 +25,7 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+	"unicode/utf8"
 )
 
 // quiet is a log that keeps nothing.
@@ -461,6 +463,28 @@ func TestConnectAgent(t *testing.T) {
 	}
 }
 
+// A huge User-Agent and path are cut to eventFieldMax as they're
+// logged, at a rune's start, so a VM can't bloat the log; the server
+// takes no headers past maxHeaderBytes.
+func TestEventFieldsCapped(t *testing.T) {
+	t.Parallel()
+	s := testServer(t, Config{}, "")
+	events := logs(s)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://new.test/"+strings.Repeat("p", 10000), nil)
+	req.Header.Set("User-Agent", strings.Repeat("é", 20000))
+	s.handler(httptest.NewRecorder(), req)
+	if n := len(events.String()); n > 3*eventFieldMax || n == 0 {
+		t.Errorf("logged %d bytes", n)
+	}
+	var e Event
+	if err := json.Unmarshal([]byte(strings.TrimSpace(events.String())), &e); err != nil || len(e.Agent) > eventFieldMax || !utf8.ValidString(e.Agent) || len(e.Path) > eventFieldMax {
+		t.Errorf("logged %+v, %v", e, err)
+	}
+	if capField("short") != "short" || maxHeaderBytes != 64<<10 {
+		t.Error("capField changed a short field, or the header limit isn't 64 KiB")
+	}
+}
+
 // An allowlist read as the proxy reads its policies judges a host by its
 // rules: the built-in ones, a file's, a deny that beats an allow, and a
 // file whose denies alone apply; a built-in policy that isn't there is
@@ -495,6 +519,22 @@ func TestReadAllowlist(t *testing.T) {
 	}
 	if _, err := ReadAllowlist(own, []string{"gone.policy"}, nil, nil); err == nil {
 		t.Error("a missing built-in policy: want an error")
+	}
+	if !a.Denies("github.com", 22) || !a.Denies("example.com", 8443) || a.Denies("new.test", 443) || a.Denies("github.com", 443) {
+		t.Error("Denies: a deny isn't one, or what isn't denied is")
+	}
+	if got := a.Hosts(); !slices.Equal(got, []string{"github.com", "example.com", "other.test"}) {
+		t.Errorf("Hosts = %q", got)
+	}
+	for _, c := range []struct {
+		host string
+		port int
+		want string
+	}{{"example.com", 443, "example.com:443"}, {"example.com", 80, "example.com:80"}, {"2001:db8::1", 443, "[2001:db8::1]:443"}, {"bad host", 443, ""}, {"x.test", 0, ""}} {
+		got, ok := ExactRule(c.host, c.port)
+		if got != c.want || ok != (c.want != "") || ok && !ValidRule(got) {
+			t.Errorf("ExactRule(%s, %d) = %q, %v", c.host, c.port, got, ok)
+		}
 	}
 }
 

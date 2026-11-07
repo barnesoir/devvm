@@ -52,6 +52,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/devvmhq/devvm/internal/daemon"
 )
@@ -227,9 +228,31 @@ type events struct {
 	blocks int        // blocks so far
 }
 
-// record writes e to the log, as the VM's, now, and keeps it among the recent blocks when it's one.
+// maxHeaderBytes bounds the headers of a request to the proxy: 64 KiB, many times a real client's,
+// so the VM can't make it hold a megabyte for each.
+const maxHeaderBytes = 64 << 10
+
+// eventFieldMax bounds what the VM chose that an event records, its request's path and User-Agent,
+// so a VM can't fill the log with a few requests.
+const eventFieldMax = 512
+
+// capField is s cut to eventFieldMax bytes, at a rune's start.
+func capField(s string) string {
+	if len(s) <= eventFieldMax {
+		return s
+	}
+	i := eventFieldMax
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return s[:i]
+}
+
+// record writes e to the log, as the VM's, now, its path and User-Agent capped (capField), and
+// keeps it among the recent blocks when it's one.
 func (ev *events) record(e Event) {
 	e.Time, e.VM = time.Now().UTC().Format(time.RFC3339), ev.vm
+	e.Path, e.Agent = capField(e.Path), capField(e.Agent)
 	b, _ := json.Marshal(e)
 	ev.mu.Lock()
 	defer ev.mu.Unlock()
@@ -884,7 +907,7 @@ func serve(c Config, std IO, tick time.Duration) error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: http.HandlerFunc(s.handler), ReadHeaderTimeout: 30 * time.Second}
+	srv := &http.Server{Handler: http.HandlerFunc(s.handler), ReadHeaderTimeout: 30 * time.Second, MaxHeaderBytes: maxHeaderBytes}
 	l.Printf("listening on %s for %s", ln.Addr(), s.vm)
 	// What devvm waits for as it starts the proxy: the address it listens on.
 	if err := daemon.Ready(ln.Addr().String()); err != nil {

@@ -131,7 +131,8 @@ func netLearn(n *netRun) {
 		for _, h := range out.Hosts {
 			learned = append(learned, h.Rule)
 		}
-		if !slices.Contains(learned, "example.com") || !slices.Contains(learned, "example.org") || slices.Contains(learned, "github.com") {
+		// Exact rules, each with its port: 443 doesn't allow 80 too.
+		if !slices.Contains(learned, "example.com:443") || !slices.Contains(learned, "example.org:443") || slices.Contains(learned, "github.com:443") {
 			return fmt.Errorf("learned %q", learned)
 		}
 		launch, err := s.Run(devvmCmd(s, dir, "exit\n", n.home("DEVVM_MESSAGES=names")))
@@ -153,6 +154,8 @@ func netLearn(n *netRun) {
 			return fmt.Errorf("its tier is %q, learning since %q, shown as %q", st["net.tier"], st["net.learning.since"], tier())
 		case code("https://example.com/") != "200":
 			return errors.New("example.com, which it learned, failed")
+		case code("http://example.com/") != "403":
+			return errors.New("example.com on port 80, which it didn't reach, wasn't refused with a 403")
 		case code("http://example.net/") != "403" || inVM(s, vm, "curl -fsS -m 20 -o /dev/null https://example.net/") == nil:
 			return errors.New("example.net, which it didn't learn, wasn't refused with a 403")
 		}

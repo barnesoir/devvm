@@ -506,23 +506,12 @@ func newPorts(given string, def settings.Defaults, dc *devcontainer.Plan) (list 
 func (e creation) chooseNet(o Options, b backend.Backend, vm, saved string) (netpolicy.Tier, error) {
 	tier := o.Network
 	if tier == "" {
-		tier, _, _ = netpolicy.Choice(saved)
+		tier = netpolicy.Tier(saved)
 	}
 	if tier != netpolicy.TierOpen && !e.Registry.Allowed(b, backend.FeatureEgressProxy) {
 		return "", msg.NetTierBackend(b.Name(), vm)
 	}
 	return tier, nil
-}
-
-// learns reports whether a new VM learns the hosts it reaches, on the
-// internet tier: --network learn, else without --network the default's
-// choice (saved, as chooseNet reads it).
-func learns(o Options, saved string) bool {
-	if o.Network != "" {
-		return o.Learn
-	}
-	_, learn, _ := netpolicy.Choice(saved)
-	return learn
 }
 
 // choose works out a new VM's parts, as its flags and defaults have them
@@ -541,7 +530,9 @@ func (e creation) choose(o Options, f project.Folder, b backend.Backend, def set
 	if n.net, err = e.chooseNet(o, b, vm, def.Network.Value); err != nil {
 		return Parts{}, err
 	}
-	n.learn = learns(o, def.Network.Value)
+	// Only --network learn, or its row in the tier's list, makes a VM learn:
+	// no default does.
+	n.learn = o.Learn
 	s := summary{
 		vm: vm, o: o, d: d, p: p, agentsFrom: chosenBy(def.Agents.Source), layersFrom: chosenBy(def.Layers.Source),
 		size: shownSize(n.size, host), tier: n.net, learn: n.learn, ports: n.ports,

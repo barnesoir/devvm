@@ -156,11 +156,11 @@ func TestJSONShapes(t *testing.T) {
 		{
 			"network lock",
 			lockJSON(netpolicy.LearnedHosts{Since: at, Partial: true, Hosts: []netpolicy.Learned{{
-				Rule: "h:8080", Host: "h", Port: 8080, Count: 2, Last: "t", Agent: "curl/8.5.0", Risk: netpolicy.RiskPaste,
+				Rule: "h:8080", Host: "h", Port: 8080, Count: 2, Last: "t", Agent: "curl/8.5.0", Known: true, Risk: netpolicy.RiskPaste,
 			}}}),
 			[]string{
-				"hosts[].agent: string", "hosts[].count: number", "hosts[].host: string", "hosts[].last: string", "hosts[].port: number",
-				"hosts[].risk: string", "hosts[].rule: string", "learning_since: string", "partial: bool",
+				"hosts[].agent: string", "hosts[].count: number", "hosts[].host: string", "hosts[].known_domain: bool", "hosts[].last: string",
+				"hosts[].port: number", "hosts[].risk: string", "hosts[].rule: string", "learning_since: string", "partial: bool",
 			},
 		},
 		{"network -g", defaultOutput{"policy": "allowlist", "source": "config.toml"}, []string{"policy: string", "source: string"}},

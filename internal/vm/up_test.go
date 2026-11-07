@@ -800,25 +800,6 @@ func TestTierRows(t *testing.T) {
 	}
 }
 
-// A new VM learns with --network learn, or without --network when the
-// default is learn; --network with a tier overrides a default of learn.
-func TestLearns(t *testing.T) {
-	for _, tc := range []struct {
-		o     Options
-		saved string
-		want  bool
-	}{
-		{Options{}, "allowlist", false},
-		{Options{}, "learn", true},
-		{Options{Network: netpolicy.TierInternet, Learn: true}, "allowlist", true},
-		{Options{Network: netpolicy.TierInternet}, "learn", false},
-	} {
-		if got := learns(tc.o, tc.saved); got != tc.want {
-			t.Errorf("learns(%+v, %s) = %v, want %v", tc.o, tc.saved, got, tc.want)
-		}
-	}
-}
-
 func TestUpRequiresDockerLayer(t *testing.T) {
 	caps := allNative()
 	delete(caps, backend.FeatureDockerLayer)

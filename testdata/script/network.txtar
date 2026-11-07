@@ -345,7 +345,7 @@ stderr '\S*/config/devvm/config\.toml:2: '
 stderr '\S*/config/devvm/config\.toml:2: '
 cp $WORK/config-maybe.toml $CFG/config.toml
 ! exec devvm network -g
-stderr '^devvm: net_default_failed reason=\S*/config/devvm/config\.toml:1: "maybe" isn''t one of open, internet, learn, allowlist, none$'
+stderr '^devvm: net_default_failed reason=\S*/config/devvm/config\.toml:1: "maybe" isn''t one of open, internet, allowlist, none$'
 rm $CFG/config.toml
 exec devvm --network allowlist --no-git-protect
 

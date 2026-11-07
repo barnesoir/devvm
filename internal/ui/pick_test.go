@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"errors"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -43,6 +46,75 @@ func TestPickColumns(t *testing.T) {
 	short := newPicking([]Section{{Choices: choices()[:2]}}, false)
 	if out, _ := short.draw(style{}, -1); !strings.Contains(out, "  [x] a          first\r\n") {
 		t.Errorf("short names: drew %q", out)
+	}
+}
+
+// redraw is a cursor move back up, as pickLoop writes it before a
+// redraw.
+var redraw = regexp.MustCompile(`\x1b\[(\d+)A`)
+
+// In a terminal of 60 by 20, a list of 200 hosts, one of them 253
+// characters long, draws each line within the width, its long name cut
+// from the left so its domain shows, and scrolls in a window of the same
+// lines every time, with how many more there are above and below, so a
+// redraw never leaves a line of the last one behind. a ticks every row,
+// and again unticks them all.
+func TestPickFitsTheTerminal(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("a", 236) + ".attacker.example" // 253
+	many := []Choice{{Name: long, Desc: "1 connection"}}
+	for i := range 199 {
+		many = append(many, Choice{Name: "h" + strconv.Itoa(i) + ".example.com:443", Desc: strings.Repeat("d", 80)})
+	}
+	for _, tc := range []struct {
+		keys string
+		on   int
+	}{{strings.Repeat("j", 150) + "a\r", 200}, {"aa\r", 0}, {strings.Repeat("k", 3) + " \r", 1}} {
+		u, out, _ := testUI(t, tc.keys)
+		pickTerminal(u)
+		u.termSize = func() (int, int) { return 60, 20 }
+		got := u.Pick(msg.MsgUnknown("x"), []Section{{Choices: many}})[0].Choices
+		if n := len(onOf(got)); n != tc.on {
+			t.Errorf("%q: %d on, want %d", tc.keys, n, tc.on)
+		}
+		s := out.String()
+		moves := redraw.FindAllStringSubmatch(s, -1)
+		if len(moves) == 0 {
+			t.Fatalf("%q: no redraw", tc.keys)
+		}
+		for _, m := range moves {
+			if m[1] != moves[0][1] {
+				t.Errorf("%q: redraws of %s and %s lines: one leaves lines behind", tc.keys, moves[0][1], m[1])
+			}
+		}
+		if n, _ := strconv.Atoi(moves[0][1]); n > 20-2 {
+			t.Errorf("%q: %d lines, under a help line, in a terminal of 20", tc.keys, n)
+		}
+		plain := redraw.ReplaceAllString(strings.NewReplacer("\x1b[2K", "", "\x1b[?25l", "", "\x1b[?25h", "").Replace(s), "")
+		for line := range strings.SplitSeq(plain, "\r\n") {
+			if runes(line) >= 60 {
+				t.Errorf("%q: a line of %d columns in 60: %q", tc.keys, runes(line), line)
+			}
+		}
+		if !strings.Contains(plain, "attacker.example") || strings.Contains(plain, long) {
+			t.Errorf("%q: the long name isn't cut from the left", tc.keys)
+		}
+		if !strings.Contains(plain, "pick_more count=") {
+			t.Errorf("%q: no line says how many more", tc.keys)
+		}
+	}
+}
+
+// Where the terminal won't go into raw mode, PickChecked says why and
+// leaves the choices as they were; Pick goes on with them.
+func TestPickCheckedRawFails(t *testing.T) {
+	t.Parallel()
+	u, _, _ := testUI(t, "")
+	pickTerminal(u)
+	u.rawInput = func() (func(), error) { return nil, errors.New("no tty") }
+	got, err := u.PickChecked(msg.MsgUnknown("x"), []Section{{Choices: choices()}})
+	if msg.NamesOf(err) != "pick_failed reason=no tty" || !slices.Equal(onOf(got[0].Choices), []string{"a", "b"}) {
+		t.Errorf("PickChecked = %q, %v", onOf(got[0].Choices), msg.NamesOf(err))
 	}
 }
 

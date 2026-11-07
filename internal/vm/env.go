@@ -104,6 +104,10 @@ type Env struct {
 	PickFeatures func([]build.Feature) []build.Feature
 	PickParts    func(msg.M, []PickPart) []PickPart
 	PickOne      func(msg.M, []PickRow) int
+	// PickMany shows rows under help for any to be chosen, and returns
+	// them as chosen, or why the picker couldn't show where it can
+	// (CanPick); nil shows none.
+	PickMany func(msg.M, []PickRow) ([]PickRow, error)
 	// AddInclude is --ssh-config: devvm's Include line goes in
 	// ~/.ssh/config, when it's missing, without asking.
 	AddInclude bool
