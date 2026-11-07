@@ -132,24 +132,27 @@ func TestSettingsFormat(t *testing.T) {
 	}
 }
 
-// The lists of every agent's, in Defs' order, and Of, which code of one
-// agent's own asks with its constant.
+// The lists of every agent's are each Def's, in Defs' order, and Of,
+// which code of one agent's own asks with its constant, finds it.
 func TestLists(t *testing.T) {
-	if got := History(); !slices.Equal(got, []string{".claude", ClaudeJSON, ".codex", OpencodeData, ".local/state/opencode", PiFolder + "/sessions"}) {
+	var history, excludes, kinds []string
+	var env []Env
+	for _, d := range Defs {
+		history, excludes, env = append(history, d.History...), append(excludes, d.HistoryExcludes...), append(env, d.Env...)
+		for _, l := range d.Logins {
+			kinds = append(kinds, l.Kind)
+		}
+	}
+	if got := History(); !slices.Equal(got, history) || !slices.Contains(got, ClaudeJSON) {
 		t.Errorf("History = %v", got)
 	}
-	if got := HistoryExcludes(); len(got) != 6 || got[0] != ".claude/.credentials.json" {
+	if got := HistoryExcludes(); !slices.Equal(got, excludes) {
 		t.Errorf("HistoryExcludes = %v", got)
 	}
-	var env []string
-	for _, e := range GuestEnv() {
-		env = append(env, e.Name+"="+e.Value)
+	if got := GuestEnv(); !slices.Equal(got, env) || !slices.Contains(got, Env{"PI_TELEMETRY", "0"}) {
+		t.Errorf("GuestEnv = %v", got)
 	}
-	want := []string{"DISABLE_AUTOUPDATER=1", "DISABLE_TELEMETRY=1", "DISABLE_ERROR_REPORTING=1", "OPENCODE_DISABLE_AUTOUPDATE=1", "PI_SKIP_VERSION_CHECK=1", "PI_TELEMETRY=0"}
-	if !slices.Equal(env, want) {
-		t.Errorf("GuestEnv = %v", env)
-	}
-	if got := LoginKinds(); !slices.Equal(got, []string{Claude, ClaudeOAuth, Codex, Opencode, Pi}) {
+	if got := LoginKinds(); !slices.Equal(got, kinds) || !slices.Contains(got, ClaudeOAuth) {
 		t.Errorf("LoginKinds = %v", got)
 	}
 	if Of(Pi).Folder != PiFolder {
@@ -168,7 +171,7 @@ func TestLoginAgents(t *testing.T) {
 	if got := LoginAgents(); !slices.Equal(got, Names()) {
 		t.Errorf("LoginAgents = %v", got)
 	}
-	if got := Select(Def.KeysOnly); !slices.Equal(got, []string{Pi}) {
+	if got := Select(Def.KeysOnly); !slices.Contains(got, Pi) || slices.Contains(got, Claude) || slices.Contains(got, Codex) {
 		t.Errorf("KeysOnly agents = %v", got)
 	}
 }

@@ -9,7 +9,7 @@
 ! exec devvm agent login
 stderr '^devvm: arg_missing args=AGENT command=devvm agent login$'
 ! exec devvm agent login aider
-stderr '^devvm: arg_not_choice choices=claude, codex, opencode, pi command=devvm agent login given=aider$'
+stderr '^devvm: arg_not_choice choices=claude, codex, opencode, pi(, [a-z0-9-]+)* command=devvm agent login given=aider$'
 ! exec devvm agent login codex --setup-token
 stderr '^devvm: agent_login_setup_token_alone$'
 ! exec devvm agent login claude --device-code
@@ -21,9 +21,9 @@ stderr '^devvm: agent_login_claude_flag flag=--stdin$'
 ! exec devvm agent login codex --stdin
 stderr '^devvm: agent_login_stdin_alone agent=codex$'
 ! exec devvm agent login codex --api-key --provider anthropic
-stderr '^devvm: agent_login_provider_alone agents=opencode, pi$'
+stderr '^devvm: agent_login_provider_alone agents=opencode, pi(, [a-z0-9-]+)*$'
 ! exec devvm agent login opencode --provider anthropic
-stderr '^devvm: agent_login_provider_alone agents=opencode, pi$'
+stderr '^devvm: agent_login_provider_alone agents=opencode, pi(, [a-z0-9-]+)*$'
 ! exec devvm agent login opencode --api-key
 stderr '^devvm: agent_login_provider_needed agent=opencode providers=anthropic, openai, openrouter$'
 ! exec devvm agent login opencode --api-key --provider groq

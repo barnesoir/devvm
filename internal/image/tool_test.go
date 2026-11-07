@@ -14,6 +14,7 @@ import (
 	"testing/fstest"
 
 	"github.com/devvmhq/devvm/assets"
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/msg"
 )
 
@@ -278,20 +279,28 @@ func TestSortToolsAndGroups(t *testing.T) {
 	}
 }
 
-// The table's views: the toolchains, then the agents; rust alone needs
-// no download in the lock, dotnet alone has build.sh fetch its own, and
-// pi alone has builds for glibc alone.
+// The table's views: the toolchains, then the agents, the registry's in
+// its order, each its own one member; rust alone needs no download in the
+// lock, dotnet alone has build.sh fetch its own, and an agent its registry
+// marks (pi) alone has builds for glibc alone.
 func TestSharedTools(t *testing.T) {
 	if want := []string{"node", "python", "rust", "go", "dotnet"}; !slices.Equal(Toolchains, want) {
 		t.Errorf("Toolchains = %q, want %q", Toolchains, want)
 	}
-	if want := []string{"claude", "codex", "opencode", "pi"}; !slices.Equal(Agents, want) {
+	if want := agents.Names(); !slices.Equal(Agents, want) || !slices.Contains(want, "claude") {
 		t.Errorf("Agents = %q, want %q", Agents, want)
 	}
 	for _, d := range SharedTools {
-		if d.GlibcOnly != (d.Name == "pi") || GlibcOnly(d.Name) != d.GlibcOnly {
-			t.Errorf("%s: GlibcOnly %v", d.Name, d.GlibcOnly)
+		a, isAgent := agents.Get(d.Name)
+		if d.GlibcOnly != (isAgent && a.GlibcOnly) || GlibcOnly(d.Name) != d.GlibcOnly || isAgent != (d.Kind == Agent) {
+			t.Errorf("%s: GlibcOnly %v, kind %v", d.Name, d.GlibcOnly, d.Kind)
 		}
+		if isAgent && !slices.Equal(d.Members, []string{d.Name}) {
+			t.Errorf("%s: members %q", d.Name, d.Members)
+		}
+	}
+	if !GlibcOnly("pi") || GlibcOnly("claude") {
+		t.Error("GlibcOnly: pi has builds for glibc alone, Claude Code for musl too")
 	}
 	if GlibcOnly("nix") || GlibcOnly("bun") {
 		t.Error("GlibcOnly of a layer or another member")

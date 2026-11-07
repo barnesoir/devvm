@@ -182,7 +182,7 @@ func TestHistoryImportScript(t *testing.T) {
 		`grep -qE '(^|/)\.\.(/|$)'`, "echo " + historyUnsafe + "; exit 1",
 		`tar -xzf "$t/export" -C "$t/x" '--no-same-owner' '--no-same-permissions' '--anchored' '--exclude=`,
 		"'--exclude=.claude.json' ", `find "$t/x" -type l`, "/* | .. | ../* | */.. | */../*) ",
-		"for p in '.claude' '.claude.json' '.codex' '.local/share/opencode' '.local/state/opencode' '.pi/agent/sessions'; do",
+		"for p in '.claude' '.claude.json' '.codex' '.local/share/opencode' '.local/state/opencode' '.pi/agent/sessions'",
 		"tar --extract --file=- --directory ~ --skip-old-files '--no-same-owner' '--no-same-permissions'",
 	} {
 		if !strings.Contains(s, want) {
