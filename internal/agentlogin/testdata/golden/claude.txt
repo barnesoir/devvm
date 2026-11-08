@@ -1,6 +1,7 @@
 binding {"name":"claude-mcp-4192ba186e64","kind":"login","agent":"claude","hosts":["mcp.example.com"],"header":"Authorization","placeholder":"devvm-proxy-managed-claude-mcp-4192ba186e64-s4lt"}
 kept 
 withheld 
+passed but bound 
 providers 
 chatgpt  no
 vm copy

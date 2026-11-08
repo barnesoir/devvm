@@ -555,7 +555,7 @@ func TestVMCopies(t *testing.T) {
 	// What a copy holds as it is is warned about.
 	writeLogin(t, s, "codex", `{"OPENAI_API_KEY":"sk-codex-secret","extra":"x","b":1}`)
 	writeLogin(t, s, "opencode", `{"llama":{"type":"api","key":"local"},"other":{"type":"oauth","access":"a","refresh":"r"}}`)
-	writeLogin(t, s, "pi", `{"anthropic":{"type":"api_key","key":"sk-ant-pi-secret"},"groq":{"type":"api_key","key":"g"},"openai-codex":{"type":"oauth","access":"a","refresh":"r"}}`)
+	writeLogin(t, s, "pi", `{"anthropic":{"type":"api_key","key":"sk-ant-pi-secret"},"lmstudio":{"type":"api_key","key":"g"},"openai-codex":{"type":"oauth","access":"a","refresh":"r"}}`)
 	for _, kind := range []string{"codex", "opencode", "pi"} {
 		if _, err := s.VMLogin(kind, salt); err != nil {
 			t.Errorf("VMLogin(%s): %v", kind, err)
@@ -563,18 +563,19 @@ func TestVMCopies(t *testing.T) {
 	}
 	if want := []string{
 		"login_kept agent=Codex file=auth.json keys=b, extra",
-		"login_withheld agent=opencode name=opencode providers=llama, other", "login_withheld agent=pi name=pi providers=groq, openai-codex",
+		"login_withheld agent=opencode name=opencode providers=llama, other", "login_withheld agent=pi name=pi providers=lmstudio, openai-codex",
 	}; !slices.Equal(warned, want) {
 		t.Errorf("warned %q, want %q", warned, want)
 	}
 	if f := LoginFile(s.Dirs, "pi"); !strings.HasSuffix(f, filepath.Join("logins", "pi", ".pi", "agent", "auth.json")) {
 		t.Errorf("pi's login file is %s", f)
 	}
-	// config.toml's [pass-keys] gives the VM pi's groq key as it is, which is noted, not warned.
+	// config.toml's [pass-keys] gives the VM pi's lmstudio key as it is, which is noted, not
+	// warned; the anthropic key it lists too is bound all the same, which is noted.
 	if err := os.MkdirAll(s.Dirs.Config, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(s.Dirs.ConfigFile(), []byte("[pass-keys]\npi = [\"groq\"]\nopencode = [\"llama\", \"other\"]\n"), 0o600); err != nil {
+	if err := os.WriteFile(s.Dirs.ConfigFile(), []byte("[pass-keys]\npi = [\"lmstudio\", \"anthropic\"]\nopencode = [\"llama\", \"other\"]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var noted []string
@@ -586,7 +587,8 @@ func TestVMCopies(t *testing.T) {
 		t.Errorf("pi's VM copy: %s, %v", data, err)
 	case !strings.Contains(string(data), `"key": "g"`):
 		t.Errorf("pi's VM copy lacks the passed key: %s", data)
-	case !slices.Equal(noted, []string{"login_passed agent=pi providers=groq"}) || !slices.Equal(warned, []string{"login_withheld agent=pi name=pi providers=openai-codex"}):
+	case !slices.Equal(noted, []string{"login_passed agent=pi providers=lmstudio", "login_pass_bound agent=pi name=pi providers=anthropic"}) ||
+		!slices.Equal(warned, []string{"login_withheld agent=pi name=pi providers=openai-codex"}):
 		t.Errorf("noted %q, warned %q", noted, warned)
 	}
 	// opencode's list passes its llama key, but never its other OAuth login.

@@ -2,6 +2,7 @@ binding {"name":"codex","kind":"login","agent":"codex","hosts":["chatgpt.com","a
 binding {"name":"codex-key","kind":"login","agent":"codex","hosts":["api.openai.com"],"header":"Authorization","placeholder":"sk-devvm-proxy-managed-codex-s4lt"}
 kept aa_other,zz_extra
 withheld 
+passed but bound 
 providers 
 chatgpt e2efake@example.com yes
 vm copy

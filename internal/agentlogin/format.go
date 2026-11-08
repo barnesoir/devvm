@@ -88,8 +88,8 @@ func (opencodeFormat) bindings(m map[string]any, salt string) []proxy.Binding {
 
 // vmCopy: Kept are the providers File.Pass lists, whose entries go as they are.
 func (opencodeFormat) vmCopy(m map[string]any, f File) (map[string]any, VMFile) {
-	passed, withheld := opencodeSplit(m, f.Pass)
-	return opencodeVM(m, f.Salt, f.Pass), VMFile{Kept: passed, Withheld: withheld}
+	c := opencodeSplit(m, f.Pass)
+	return opencodeVM(m, f.Salt, f.Pass), c
 }
 
 func (opencodeFormat) get(ctx context.Context, f File, name string) (string, error) {
@@ -113,8 +113,8 @@ func (piFormat) bindings(m map[string]any, salt string) []proxy.Binding { return
 
 // vmCopy: Kept are the providers File.Pass lists, whose entries go as they are.
 func (piFormat) vmCopy(m map[string]any, f File) (map[string]any, VMFile) {
-	passed, withheld := piSplit(m, f.Pass)
-	return piVM(m, f.Salt, f.Pass), VMFile{Kept: passed, Withheld: withheld}
+	c := piSplit(m, f.Pass)
+	return piVM(m, f.Salt, f.Pass), c
 }
 
 func (piFormat) get(_ context.Context, f File, name string) (string, error) { return f.piGet(name) }

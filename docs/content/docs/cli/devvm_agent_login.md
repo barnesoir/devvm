@@ -33,7 +33,7 @@ devvm agent login AGENT [flags]
   -h, --help                help for login
       --here                use this folder's own VM, never that of a folder it's inside
       --parent              use the VM of the nearest folder this one is inside, even across a git repo of its own
-      --provider PROVIDER   with opencode's or pi's --api-key, the PROVIDER it's for: anthropic, openai or openrouter
+      --provider PROVIDER   with opencode's or pi's --api-key, the PROVIDER it's for: anthropic, deepseek, google, groq, mistral, openai, openrouter or xai
       --setup-token         with claude, get a long-lived Claude Code token with claude setup-token instead
       --stdin               read the secret from a line of input, without asking
 ```

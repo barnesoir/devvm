@@ -286,7 +286,8 @@ func (s *Store) login(kind, salt string) agentlogin.File {
 // their tokens. The copy of an agent that config.toml's [pass-keys] takes
 // (agents.Def's PassKeys) holds as they are the API keys of the providers
 // it lists for the agent (settings.PassKeys), which it notes, and
-// withholds every other key devvm doesn't bind.
+// withholds every other key devvm doesn't bind. A provider it lists whose
+// key devvm binds gets its placeholder all the same, which it notes too.
 func (s *Store) VMLogin(kind, salt string) ([]byte, error) {
 	f := s.login(kind, salt)
 	l, d, _ := agents.LoginOf(kind)
@@ -305,6 +306,9 @@ func (s *Store) VMLogin(kind, salt string) ([]byte, error) {
 	}
 	if list := strings.Join(c.Withheld, ", "); list != "" {
 		s.Warn(msg.LoginWithheld(d.Display, d.Name, list))
+	}
+	if list := strings.Join(c.PassBound, ", "); list != "" {
+		s.Note(msg.LoginPassBound(d.Display, d.Name, list))
 	}
 	return c.Data, err
 }

@@ -84,7 +84,7 @@ func TestLoginsGolden(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			p := filepath.Join(t.TempDir(), "auth.json")
 			must(t, os.WriteFile(p, []byte(data), 0o600))
-			f := File{Kind: kind, Path: p, Salt: "s4lt", Pass: []string{"ollama", "groq-oauth"}}
+			f := File{Kind: kind, Path: p, Salt: "s4lt", Pass: []string{"ollama", "groq-oauth", "anthropic"}}
 			var out bytes.Buffer
 			bs, err := f.Bindings()
 			must(t, err)
@@ -98,6 +98,7 @@ func TestLoginsGolden(t *testing.T) {
 			must(t, err)
 			out.WriteString("kept " + strings.Join(c.Kept, ",") + "\n")
 			out.WriteString("withheld " + strings.Join(c.Withheld, ",") + "\n")
+			out.WriteString("passed but bound " + strings.Join(c.PassBound, ",") + "\n")
 			out.WriteString("providers " + strings.Join(KeyProviders(kind), ",") + "\n")
 			email, ok, err := f.ChatGPT()
 			must(t, err)

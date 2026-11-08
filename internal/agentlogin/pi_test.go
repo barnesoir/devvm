@@ -27,10 +27,10 @@ const piHostLogins = `{
 		"email": [{"t": "e2efake-in-a-list"}]}
 }`
 
-// pi's auth.json in the VM, whole. A bound key (Anthropic's, OpenRouter's) becomes the VM's
-// placeholder, bound for its host and header, and its entry holds nothing else: no env, which pi
-// lets win over the environment, and no other field, nested or not. A templated key ($K, filled
-// from env) and a command key aren't bound; neither is another provider's key, nor an env holding
+// pi's auth.json in the VM, whole. A bound key (Anthropic's, Groq's, OpenRouter's) becomes the
+// VM's placeholder, bound for its host and header, and its entry holds nothing else: no env, which
+// pi lets win over the environment, and no other field, nested or not. A templated key ($K, filled
+// from env) and a command key (Google's) aren't bound; neither is another provider's key, nor an env holding
 // one (Azure's, Bedrock's): each is withheld, as an OAuth login is, keeping only fields that name
 // an account. The provider File.Pass lists (a local model server) goes as it is. Get reads only
 // the bound keys from the host's file.
@@ -44,6 +44,7 @@ func TestPiLogins(t *testing.T) {
 	}
 	want := []string{
 		"pi-anthropic api.anthropic.com x-api-key devvm-proxy-managed-pi-anthropic-s1",
+		"pi-groq api.groq.com Authorization devvm-proxy-managed-pi-groq-s1",
 		"pi-openrouter openrouter.ai Authorization devvm-proxy-managed-pi-openrouter-s1",
 	}
 	if !slices.Equal(got, want) {
@@ -57,7 +58,7 @@ func TestPiLogins(t *testing.T) {
 		"anthropic": {"type": "api_key", "key": "devvm-proxy-managed-pi-anthropic-s1"},
 		"openrouter": {"type": "api_key", "key": "devvm-proxy-managed-pi-openrouter-s1"},
 		"openai": {"type": "api_key"}, "azure": {"type": "api_key"}, "amazon-bedrock": {"type": "api_key"},
-		"google": {"type": "api_key"}, "groq": {"type": "api_key"},
+		"google": {"type": "api_key"}, "groq": {"type": "api_key", "key": "devvm-proxy-managed-pi-groq-s1"},
 		"ollama": {"type": "api_key", "key": "ollama-local", "env": {"OLLAMA_HOST": "kept"}},
 		"groq-oauth": {"type": "oauth"},
 		"openai-codex": {"type": "oauth", "expires": 1, "accountId": "acct-1", "scopes": ["openid"]}
@@ -68,14 +69,14 @@ func TestPiLogins(t *testing.T) {
 	if strings.Contains(string(c.Data), "e2efake") {
 		t.Errorf("the VM's copy holds a key or token:\n%s", c.Data)
 	}
-	withheld := []string{"amazon-bedrock", "azure", "google", "groq", "groq-oauth", "openai", "openai-codex"}
+	withheld := []string{"amazon-bedrock", "azure", "google", "groq-oauth", "openai", "openai-codex"}
 	if !slices.Equal(c.Kept, []string{"ollama"}) || !slices.Equal(c.Withheld, withheld) {
 		t.Errorf("kept %v, withheld %v", c.Kept, c.Withheld)
 	}
 	if v, err := f.Get(t.Context(), "pi-anthropic"); err != nil || v != "sk-ant-e2efake" {
 		t.Errorf("Get(pi-anthropic) = %q, %v", v, err)
 	}
-	for _, name := range []string{"pi-openai", "pi-groq", "pi-ollama", "pi-openai-codex", "pi-nothing"} {
+	for _, name := range []string{"pi-openai", "pi-google", "pi-ollama", "pi-openai-codex", "pi-nothing"} {
 		if v, err := f.Get(t.Context(), name); err == nil {
 			t.Errorf("Get(%s) = %q, no error", name, v)
 		}
@@ -124,13 +125,13 @@ func TestPiSettings(t *testing.T) {
 // devvm agent login pi --api-key: pi's entry for the provider in its own format, its env kept, and
 // its other providers kept; a provider devvm doesn't put a key in for is refused.
 func TestPiSetKey(t *testing.T) {
-	if got := KeyProviders(Pi); !slices.Equal(got, []string{"anthropic", "openai", "openrouter"}) {
+	if got := KeyProviders(Pi); !slices.Equal(got, []string{"anthropic", "deepseek", "google", "groq", "mistral", "openai", "openrouter", "xai"}) {
 		t.Errorf("KeyProviders(pi) = %v", got)
 	}
 	p := storeFile(t, Pi, ".pi/agent/auth.json")
 	must(t, p.lockStoreWrite(map[string]any{
-		"openai": map[string]any{"type": "api_key", "key": "old", "env": map[string]any{"OPENAI_ORG": "org-1"}},
-		"groq":   map[string]any{"type": "api_key", "key": "gsk"},
+		"openai":   map[string]any{"type": "api_key", "key": "old", "env": map[string]any{"OPENAI_ORG": "org-1"}},
+		"lmstudio": map[string]any{"type": "api_key", "key": "lms"},
 	}))
 	must(t, p.SetKey("openai", "sk-new"))
 	must(t, p.SetKey("anthropic", "sk-ant"))
@@ -138,11 +139,11 @@ func TestPiSetKey(t *testing.T) {
 	switch e := obj(m, "openai"); {
 	case str(e, "type") != "api_key" || str(e, "key") != "sk-new" || str(obj(e, "env"), "OPENAI_ORG") != "org-1":
 		t.Errorf("pi's openai entry: %v", e)
-	case str(obj(m, "anthropic"), "key") != "sk-ant" || str(obj(m, "groq"), "key") != "gsk":
+	case str(obj(m, "anthropic"), "key") != "sk-ant" || str(obj(m, "lmstudio"), "key") != "lms":
 		t.Errorf("pi's login: %v", m)
 	}
-	if err := p.SetKey("groq", "k"); err == nil {
-		t.Error("SetKey(pi, groq) took it")
+	if err := p.SetKey("lmstudio", "k"); err == nil {
+		t.Error("SetKey(pi, lmstudio) took it")
 	}
 	if bs, _ := p.Bindings(); len(bs) != 2 {
 		t.Errorf("pi's bindings: %v", bs)

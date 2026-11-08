@@ -13,7 +13,7 @@ import (
 // provider devvm doesn't put keys in for, or a key that isn't one line,
 // is refused, and nothing is written.
 func TestSetKey(t *testing.T) {
-	if got := KeyProviders(Opencode); !slices.Equal(got, []string{"anthropic", "openai", "openrouter"}) {
+	if got := KeyProviders(Opencode); !slices.Equal(got, []string{"anthropic", "deepseek", "google", "groq", "mistral", "openai", "openrouter", "xai"}) {
 		t.Errorf("KeyProviders(opencode) = %v", got)
 	}
 	if got := KeyProviders(Codex); got != nil {
@@ -43,7 +43,7 @@ func TestSetKey(t *testing.T) {
 		f             File
 		provider, key string
 	}{
-		{c, "anthropic", "k"}, {o, "", "k"}, {o, "groq", "k"}, {c, "", " "}, {c, "", "a\nb"},
+		{c, "anthropic", "k"}, {o, "", "k"}, {o, "lmstudio", "k"}, {c, "", " "}, {c, "", "a\nb"},
 	} {
 		if err := bad.f.SetKey(bad.provider, bad.key); err == nil {
 			t.Errorf("SetKey(%s, %q, %q) took it", bad.f.Kind, bad.provider, bad.key)
@@ -63,8 +63,8 @@ func TestOpencodeImport(t *testing.T) {
 	o := storeFile(t, Opencode, "auth.json")
 	access := jwtWith(time.Now().Add(time.Hour), map[string]any{"email": "a@example.com"})
 	must(t, o.lockStoreWrite(map[string]any{
-		"groq":   map[string]any{"type": "api", "key": "gsk-kept"},
-		"openai": map[string]any{"type": "oauth", "access": access, "refresh": "rt-secret", "expires": 1, "accountId": "acct-1"},
+		"lmstudio": map[string]any{"type": "api", "key": "lms-kept"},
+		"openai":   map[string]any{"type": "oauth", "access": access, "refresh": "rt-secret", "expires": 1, "accountId": "acct-1"},
 	}))
 	must(t, o.SetKey("anthropic", "sk-ant-secret"))
 	o.Salt = "s4lt"
@@ -101,7 +101,7 @@ func TestOpencodeImport(t *testing.T) {
 	if oa.ID != "cred_devvm_openai" || oa.IntegrationID != "openai" || oa.Value != want {
 		t.Errorf("openai: %+v", oa)
 	}
-	for _, secret := range []string{"sk-ant-secret", "rt-secret", access, "gsk-kept"} {
+	for _, secret := range []string{"sk-ant-secret", "rt-secret", access, "lms-kept"} {
 		if strings.Contains(string(data), secret) {
 			t.Errorf("OpencodeImport holds %q: %s", secret, data)
 		}
@@ -115,6 +115,48 @@ func TestOpencodeImport(t *testing.T) {
 	}
 	if _, err := OpencodeImport([]byte(`[`)); err == nil {
 		t.Error("OpencodeImport took a broken copy")
+	}
+}
+
+// Each provider's API key, saved as devvm agent login --api-key --provider
+// saves it for opencode and for pi, is bound for that provider's hosts and
+// header alone, as checked against both agents' source, under the agent's
+// placeholder, which the VM's copy holds in the key's place; Get gives the
+// key back.
+func TestProviderKeys(t *testing.T) {
+	want := map[string][2]string{
+		"anthropic": {"api.anthropic.com", "x-api-key"}, "deepseek": {"api.deepseek.com", "Authorization"},
+		"google": {"generativelanguage.googleapis.com", "x-goog-api-key"}, "groq": {"api.groq.com", "Authorization"},
+		"mistral": {"api.mistral.ai", "Authorization"}, "openai": {"api.openai.com", "Authorization"},
+		"openrouter": {"openrouter.ai", "Authorization"}, "xai": {"api.x.ai", "Authorization"},
+	}
+	for _, kind := range []string{Opencode, Pi} {
+		if got := KeyProviders(kind); len(got) != len(want) {
+			t.Errorf("KeyProviders(%s) = %v", kind, got)
+		}
+		for _, id := range KeyProviders(kind) {
+			f := storeFile(t, kind, "auth.json")
+			must(t, f.lockStoreWrite(map[string]any{}))
+			key := id + "-e2efake-key"
+			must(t, f.SetKey(id, key))
+			f.Salt = "s1"
+			ph := "devvm-proxy-managed-" + kind + "-" + id + "-s1"
+			bs := bindings(t, f)
+			if len(bs) != 1 || bs[0].Name != kind+"-"+id || !slices.Equal(bs[0].Hosts, []string{want[id][0]}) ||
+				bs[0].Header != want[id][1] || bs[0].Placeholder != ph {
+				t.Errorf("%s's %s bindings: %+v", kind, id, bs)
+			}
+			c, err := f.VMCopy()
+			must(t, err)
+			var vm map[string]any
+			must(t, json.Unmarshal(c.Data, &vm))
+			if str(obj(vm, id), "key") != ph || strings.Contains(string(c.Data), "e2efake") || len(c.Withheld) > 0 {
+				t.Errorf("%s's %s VM copy: %s", kind, id, c.Data)
+			}
+			if v, err := f.Get(t.Context(), kind+"-"+id); err != nil || v != key {
+				t.Errorf("Get(%s-%s) = %q, %v", kind, id, v, err)
+			}
+		}
 	}
 }
 

@@ -2069,6 +2069,11 @@ func LoginKept(agent string, file string, keys string) M {
 	return M{id: "login_kept", vals: []val{{"agent", agent}, {"file", file}, {"keys", keys}}}
 }
 
+// LoginPassBound is [login_pass_bound]: "The VM's proxy puts in {{.agent}}'s {{.providers}} API key itself, so the VM gets its placeholder all the same. Take the provider out of {{.name}} in config.toml's [pass-keys]."
+func LoginPassBound(agent string, name string, providers string) M {
+	return M{id: "login_pass_bound", vals: []val{{"agent", agent}, {"name", name}, {"providers", providers}}}
+}
+
 // LoginPassed is [login_passed]: "The VM gets {{.agent}}'s {{.providers}} login unchanged, as config.toml's [pass-keys] asks."
 func LoginPassed(agent string, providers string) M {
 	return M{id: "login_passed", vals: []val{{"agent", agent}, {"providers", providers}}}
@@ -4459,6 +4464,7 @@ var specs = map[string]spec{
 	"login_capture_refused":          {fields: []string{"agent", "vm"}},
 	"login_copy_failed":              {fields: []string{"agent", "reason", "vm"}},
 	"login_kept":                     {fields: []string{"agent", "file", "keys"}},
+	"login_pass_bound":               {fields: []string{"agent", "name", "providers"}},
 	"login_passed":                   {fields: []string{"agent", "providers"}},
 	"login_read_failed":              {fields: []string{"file", "reason"}},
 	"login_withheld":                 {fields: []string{"agent", "name", "providers"}},

@@ -25,12 +25,12 @@ stderr '^devvm: agent_login_provider_alone agents=opencode, pi(, [a-z0-9-]+)*$'
 ! exec devvm agent login opencode --provider anthropic
 stderr '^devvm: agent_login_provider_alone agents=opencode, pi(, [a-z0-9-]+)*$'
 ! exec devvm agent login opencode --api-key
-stderr '^devvm: agent_login_provider_needed agent=opencode providers=anthropic, openai, openrouter$'
-! exec devvm agent login opencode --api-key --provider groq
-stderr '^devvm: arg_not_choice choices=anthropic, openai, openrouter command=--provider given=groq$'
+stderr '^devvm: agent_login_provider_needed agent=opencode providers=anthropic, deepseek, google, groq, mistral, openai, openrouter, xai$'
+! exec devvm agent login opencode --api-key --provider lmstudio
+stderr '^devvm: arg_not_choice choices=anthropic, deepseek, google, groq, mistral, openai, openrouter, xai command=--provider given=lmstudio$'
 ! exec devvm agent login codex --api-key --device-code
 stderr '^devvm: flags_exclusive'
-# pi: an API key alone, for a provider of the three.
+# pi: an API key alone, for a provider whose key the proxy puts in.
 ! exec devvm agent login pi
 stderr '^devvm: agent_login_key_only agent=pi$'
 ! exec devvm agent login pi --device-code
@@ -38,9 +38,9 @@ stderr '^devvm: agent_login_key_only agent=pi$'
 ! exec devvm agent login pi --provider openai
 stderr '^devvm: agent_login_key_only agent=pi$'
 ! exec devvm agent login pi --api-key
-stderr '^devvm: agent_login_provider_needed agent=pi providers=anthropic, openai, openrouter$'
-! exec devvm agent login pi --api-key --provider groq
-stderr '^devvm: arg_not_choice choices=anthropic, openai, openrouter command=--provider given=groq$'
+stderr '^devvm: agent_login_provider_needed agent=pi providers=anthropic, deepseek, google, groq, mistral, openai, openrouter, xai$'
+! exec devvm agent login pi --api-key --provider lmstudio
+stderr '^devvm: arg_not_choice choices=anthropic, deepseek, google, groq, mistral, openai, openrouter, xai command=--provider given=lmstudio$'
 
 # No VM.
 project none
@@ -119,6 +119,12 @@ stdout 'if ! opencode auth import <<<"\[\$entry\]" >&2; then$'
 stdout '^'' ''opencode\.sh''$'
 ! stdout 'sk-ant-testfake'
 
+# Groq's key too, bound for Groq's API with Authorization.
+stdin $WORK/key2
+exec devvm agent login opencode --api-key --provider groq --stdin
+stdout '^==> agent_key_saved agent=opencode provider=groq vm=devvm-agents-[0-9a-f]{14}$'
+grep '"name":"opencode-groq".*"hosts":\["api.groq.com"\],"header":"Authorization"' $AG_dir/run/secrets.json
+
 # Every launch sends the store's opencode logins as opencode 2's import
 # reads them, devvm's IDs and placeholders alone, beside the script.
 stub_reset
@@ -177,6 +183,15 @@ stub_reset
 exec devvm host
 exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/auth.json
 stdout '"key": "devvm-proxy-managed-pi-anthropic-[0-9a-f]{32}"'
+! stdout testfake
+# Gemini's key: bound for Gemini's API with x-goog-api-key.
+stdin $WORK/key2
+exec devvm agent login pi --api-key --provider google --stdin
+stdout '^==> agent_key_saved agent=pi provider=google vm=devvm-pi-[0-9a-f]{14}$'
+grep '"name":"pi-google".*"hosts":\["generativelanguage.googleapis.com"\],"header":"x-goog-api-key"' $PI_dir/run/secrets.json
+exec devvm host
+exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/auth.json
+stdout '"key": "devvm-proxy-managed-pi-google-[0-9a-f]{32}"'
 ! stdout testfake
 cd $WORK/agents
 

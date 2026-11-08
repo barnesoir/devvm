@@ -83,10 +83,11 @@ func piVM(m map[string]any, salt string, pass []string) map[string]any {
 	return out
 }
 
-// piSplit returns the providers of pi's whose entries the VM's copy holds as they are (passed)
-// and those it holds without their keys and tokens (neither bound nor passed), each sorted.
-func piSplit(m map[string]any, pass []string) (passed, withheld []string) {
-	return splitUnbound(m,
+// piSplit returns the providers of pi's whose entries the VM's copy holds as they are (passed),
+// those it holds without their keys and tokens (neither bound nor passed), and those pass lists
+// that it binds all the same (splitUnbound).
+func piSplit(m map[string]any, pass []string) VMFile {
+	return splitUnbound(m, pass,
 		func(id string) bool { _, bound := piKey(m, id); return bound },
 		func(id string) bool { return piPassed(m, id, pass) })
 }

@@ -2599,6 +2599,10 @@ other = "The VM gets {{.keys}} from {{.agent}}'s {{.file}} unchanged."
 description = "agent is the agent as people know it, such as pi; providers lists its providers that config.toml's [pass-keys] lists, comma-separated"
 other = "The VM gets {{.agent}}'s {{.providers}} login unchanged, as config.toml's [pass-keys] asks."
 
+[login_pass_bound]
+description = "agent is the agent as people know it, such as pi, and name its name in config.toml; providers lists the providers config.toml's [pass-keys] lists for it whose API keys the VM's proxy puts in, comma-separated"
+other = "The VM's proxy puts in {{.agent}}'s {{.providers}} API key itself, so the VM gets its placeholder all the same. Take the provider out of {{.name}} in config.toml's [pass-keys]."
+
 [pi_settings_dropped]
 description = "keys lists the keys of pi's settings.json that the VM's copy leaves out, space-separated"
 other = "The copy of pi's settings.json in {{.vm}} leaves out {{.keys}}, because devvm sets those in VMs."

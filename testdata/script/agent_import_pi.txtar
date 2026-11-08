@@ -34,13 +34,13 @@ stdout '^700\n600\n$'
 # settings files copied without their keys, settings.json also without
 # its proxy, session folder and update command, the keybindings and
 # Markdown as they are, and the login's copy holds placeholders; the
-# proxy binds the Anthropic key, and the VM gets the other provider's
-# key and the OAuth login without their key or tokens, warned.
+# proxy binds the Anthropic and Groq keys, and the VM gets the local
+# server's key and the OAuth login without their key or tokens, warned.
 project p
 stub_reset
 exec devvm --network open --no-git-protect --agents pi
 vm_name P p
-stderr '^devvm: login_withheld agent=pi name=pi providers=groq, openai-codex$'
+stderr '^devvm: login_withheld agent=pi name=pi providers=lmstudio, openai-codex$'
 ! stderr login_passed
 stderr '^pi_settings_dropped keys=httpProxy selfUpdateCommand sessionDir vm=devvm-p-[0-9a-f]{14}$'
 stderr '^devvm: pi_trusts_all vm=devvm-p-[0-9a-f]{14}$'
@@ -56,18 +56,23 @@ exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/keybindings.json
 cmp stdout $WORK/keybindings.json
 exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/auth.json
 stdout '"key": "devvm-proxy-managed-pi-anthropic-[0-9a-f]{32}"'
-! stdout 'gsk-local|"access"|"refresh"|testfake'
+stdout '"key": "devvm-proxy-managed-pi-groq-[0-9a-f]{32}"'
+! stdout 'lms-local|"access"|"refresh"|testfake'
 exec tar -tf $STUB_DIR/sync.tar
 ! stdout 'sessions|trust\.json|bin/fd'
 grep '"name":"pi-anthropic"' $P_dir/run/secrets.json
+grep '"name":"pi-groq".*"hosts":\["api.groq.com"\]' $P_dir/run/secrets.json
 
-# config.toml's [pass-keys] gives the VM groq's key as it is, noted.
+# config.toml's [pass-keys] gives the VM lmstudio's key as it is, noted;
+# groq's, which the proxy puts in, stays its placeholder, noted too.
 cp $WORK/pass.toml $CFG/config.toml
 exec devvm host
-stderr '^login_passed agent=pi providers=groq$'
+stderr '^login_passed agent=pi providers=lmstudio$'
+stderr '^login_pass_bound agent=pi name=pi providers=groq$'
 stderr '^devvm: login_withheld agent=pi name=pi providers=openai-codex$'
 exec tar -xOf $STUB_DIR/sync.tar home/.pi/agent/auth.json
-stdout '"key": "gsk-local"'
+stdout '"key": "lms-local"'
+stdout '"key": "devvm-proxy-managed-pi-groq-[0-9a-f]{32}"'
 ! stdout testfake
 # One devvm can't read fails the launch, naming its line.
 cp $WORK/badpass.toml $CFG/config.toml
@@ -82,11 +87,11 @@ Write tests.
 -- pass.toml --
 features = []
 [pass-keys]
-pi = ["groq"]
+pi = ["lmstudio", "groq"]
 -- badpass.toml --
 features = []
 [pass-keys]
-pi = ["Groq"]
+pi = ["LMStudio"]
 -- settings.json --
 {"defaultProvider":"anthropic","httpProxy":"http://user:testfake-pass@proxy.example:8080","sessionDir":"/tmp/s","selfUpdateCommand":["sh","-c","testfake"],"defaultProjectTrust":"always"}
 -- models.json --
@@ -94,6 +99,6 @@ pi = ["Groq"]
 -- keybindings.json --
 {"app.session.new": "ctrl+shift+n"}
 -- auth.json --
-{"anthropic":{"type":"api_key","key":"sk-ant-testfake"},"groq":{"type":"api_key","key":"gsk-local"},"openai-codex":{"type":"oauth","access":"testfake-access","refresh":"testfake-refresh","expires":1}}
+{"anthropic":{"type":"api_key","key":"sk-ant-testfake"},"lmstudio":{"type":"api_key","key":"lms-local"},"groq":{"type":"api_key","key":"gsk_testfake-groq"},"openai-codex":{"type":"oauth","access":"testfake-access","refresh":"testfake-refresh","expires":1}}
 -- session.jsonl --
 {"type":"session","cwd":"/p","prompt":"testfake-history"}
