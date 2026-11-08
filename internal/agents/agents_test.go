@@ -28,13 +28,12 @@ func TestDefsComplete(t *testing.T) {
 	if _, err := toml.DecodeFile(filepath.Join(root, "assets", "shared-tools", "mise.toml"), &mise); err != nil {
 		t.Fatal(err)
 	}
-	page, err := os.ReadFile(filepath.Join(root, "docs", "content", "docs", "using", "coding-agents.md"))
-	if err != nil {
-		t.Fatal(err)
+	var names []string
+	for _, row := range pageTable(t, "## Supported agents") {
+		names = append(names, row[0])
 	}
-	table := supportedAgents(t, string(page))
-	if names := Names(); !slices.Equal(table, names) {
-		t.Errorf("Supported agents lists %v, the registry %v, in its order", table, names)
+	if !slices.Equal(names, Names()) {
+		t.Errorf("Supported agents lists %v, the registry %v, in its order", names, Names())
 	}
 	for _, d := range Defs {
 		if mise.Alias[d.Name] == "" {
@@ -43,21 +42,75 @@ func TestDefsComplete(t *testing.T) {
 	}
 }
 
-// supportedAgents is the names in the first column of the page's
-// Supported agents table, in its order.
-func supportedAgents(t *testing.T, page string) []string {
+// pageTable is the rows of the table in coding-agents.md's section of
+// that heading whose first cell is a name in backticks, each row's cells
+// trimmed, the first without its backticks.
+func pageTable(t *testing.T, heading string) [][]string {
 	t.Helper()
-	_, section, ok := strings.Cut(page, "\n## Supported agents\n")
+	page, err := os.ReadFile(filepath.Join(root, "docs", "content", "docs", "using", "coding-agents.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, section, ok := strings.Cut(string(page), "\n"+heading+"\n")
 	if !ok {
-		t.Fatal("coding-agents.md has no Supported agents section")
+		t.Fatalf("coding-agents.md has no %q section", heading)
 	}
-	section, _, _ = strings.Cut(section, "\n## ")
-	row := regexp.MustCompile("(?m)^\\| `([a-z0-9-]+)` \\|")
-	var names []string
-	for _, m := range row.FindAllStringSubmatch(section, -1) {
-		names = append(names, m[1])
+	level, _, _ := strings.Cut(heading, " ")
+	section, _, _ = strings.Cut(section, "\n"+level+" ")
+	var rows [][]string
+	for _, line := range strings.Split(section, "\n") {
+		if !strings.HasPrefix(line, "| `") {
+			continue
+		}
+		cells := strings.Split(strings.Trim(line, "|"), "|")
+		for i := range cells {
+			cells[i] = strings.TrimSpace(cells[i])
+		}
+		cells[0] = strings.Trim(cells[0], "`")
+		rows = append(rows, cells)
 	}
-	return names
+	return rows
+}
+
+// The providers are each whole and sorted by ID, and the docs' table of
+// them names each, in that order, with its name, its hosts and its header.
+func TestProvidersComplete(t *testing.T) {
+	code := regexp.MustCompile("`([^`]+)`")
+	spans := func(s string) []string {
+		var out []string
+		for _, m := range code.FindAllStringSubmatch(s, -1) {
+			out = append(out, m[1])
+		}
+		return out
+	}
+	rows := pageTable(t, "### API keys the proxy puts in")
+	if len(rows) != len(Providers) {
+		t.Errorf("the docs' table has %d providers, the registry %d", len(rows), len(Providers))
+	}
+	for i, p := range Providers {
+		if p.ID == "" || p.Display == "" || len(p.Hosts) == 0 || p.Header == "" {
+			t.Errorf("%+v: no ID, name, hosts or header", p)
+		}
+		if i > 0 && Providers[i-1].ID >= p.ID {
+			t.Errorf("%s: after %s, out of order", p.ID, Providers[i-1].ID)
+		}
+		if got, ok := ProviderOf(p.ID); !ok || got.ID != p.ID {
+			t.Errorf("ProviderOf(%s) = %v, %v", p.ID, got, ok)
+		}
+		if i >= len(rows) {
+			continue
+		}
+		row := rows[i]
+		if len(row) != 4 || row[0] != p.ID || row[1] != p.Display || !slices.Equal(spans(row[2]), p.Hosts) || !slices.Equal(spans(row[3]), []string{p.Header}) {
+			t.Errorf("the docs' table's row %v isn't %+v", row, p)
+		}
+	}
+	if ids := ProviderIDs(); len(ids) != len(Providers) || !slices.IsSorted(ids) {
+		t.Errorf("ProviderIDs = %v", ids)
+	}
+	if _, ok := ProviderOf("none"); ok {
+		t.Error("ProviderOf finds a provider that isn't one")
+	}
 }
 
 // Each Def is whole and its own: a name, its folder, logins of kinds no

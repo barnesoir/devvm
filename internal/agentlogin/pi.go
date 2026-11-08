@@ -7,8 +7,8 @@ package agentlogin
 // {"type":"oauth","access","refresh","expires" (ms)} with the provider's own fields.
 //
 // The VM's copy (piVM) holds each entry in one of three ways:
-//   - bound: an api_key entry of a provider whose hosts devvm knows (opencodeAPI, the same providers
-//     as opencode's) with a key that's a value, neither a command nor a template. The VM gets
+//   - bound: an api_key entry of a provider whose hosts devvm knows (agents.Providers, as
+//     opencode's) with a key that's a value, neither a command nor a template. The VM gets
 //     {type, key} alone, its key a placeholder the proxy fills in; its env stays on the host.
 //   - passed: an api_key entry of a provider the user listed (File.Pass, config.toml's
 //     [pass-keys]), such as a local model server's, which goes as it is.
@@ -35,11 +35,12 @@ func piPlaceholder(provider, salt string) string {
 var piTemplate = regexp.MustCompile(`\$\{?[A-Za-z_]`)
 
 // piKey returns the API key of pi's entry for provider id in m, and whether devvm binds it: an
-// api_key entry of a provider in opencodeAPI whose key is a value, not a command or a template.
+// api_key entry of a provider in agents.Providers whose key is a value, not a command or a
+// template.
 func piKey(m map[string]any, id string) (string, bool) {
 	e := obj(m, id)
 	k := str(e, "key")
-	_, known := opencodeAPI[id]
+	_, known := keyProvider(id)
 	value := k != "" && !strings.HasPrefix(k, "!") && !piTemplate.MatchString(strings.ReplaceAll(k, "$$", ""))
 	return k, known && str(e, "type") == "api_key" && value
 }
@@ -48,7 +49,7 @@ func piBindings(m map[string]any, salt string) []proxy.Binding {
 	var bs []proxy.Binding
 	for _, id := range sortedKeys(m) {
 		if _, ok := piKey(m, id); ok {
-			p := opencodeAPI[id]
+			p, _ := keyProvider(id)
 			bs = append(bs, login(agents.Pi, "pi-"+id, p.hosts, p.header, piPlaceholder(id, salt)))
 		}
 	}

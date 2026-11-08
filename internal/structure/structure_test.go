@@ -188,7 +188,6 @@ func devvm() rules {
 // why.
 func devvmVars() map[string]string {
 	return map[string]string{
-		"internal/agentlogin.opencodeAPI":         table,
 		"internal/agentlogin.opencodeOAuth":       table,
 		"internal/agentlogin.codexKnown":          table,
 		"internal/agentlogin.claudeTopKeys":       table,
@@ -223,6 +222,7 @@ func devvmVars() map[string]string {
 		"internal/proxy.githubMinting":            table,
 		"internal/secrets.Known":                  table,
 		"internal/agents.Defs":                    table,
+		"internal/agents.Providers":               table,
 		"internal/sshagent.Modes":                 table,
 		"internal/tools.miseSHA256":               table,
 		"internal/trust.Env":                      table,

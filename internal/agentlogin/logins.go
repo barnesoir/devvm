@@ -155,18 +155,20 @@ func splitUnbound(m map[string]any, bound, passed func(id string) bool) (pass, w
 	return pass, withheld
 }
 
-// opencode providers devvm knows: where an API key or access token goes. Logins for other providers
-// are withheld from the VM's copy unless config.toml's [pass-keys] passes them (opencodeVM). pi's
-// API keys are bound for opencodeAPI's providers too (pi.go).
+// Where a provider's API key or access token goes. opencode's and pi's API keys are bound for
+// agents.Providers (keyProvider), and opencode's OAuth logins for opencodeOAuth's. Logins for other
+// providers are withheld from the VM's copy unless config.toml's [pass-keys] passes them
+// (opencodeVM, piVM).
 type provider struct {
 	hosts  []string
 	header string
 }
 
-var opencodeAPI = map[string]provider{
-	"anthropic":  {[]string{"api.anthropic.com"}, "x-api-key"},
-	"openai":     {[]string{"api.openai.com"}, "Authorization"},
-	"openrouter": {[]string{"openrouter.ai"}, "Authorization"},
+// keyProvider is where the API key of the provider whose ID is id goes, false for a provider not
+// in agents.Providers.
+func keyProvider(id string) (provider, bool) {
+	p, ok := agents.ProviderOf(id)
+	return provider{p.Hosts, p.Header}, ok
 }
 
 var opencodeOAuth = map[string]provider{
@@ -410,7 +412,7 @@ func opencodeBindings(m map[string]any, salt string) []proxy.Binding {
 		var ok bool
 		switch str(e, "type") {
 		case "api":
-			p, ok = opencodeAPI[id]
+			p, ok = keyProvider(id)
 		case "oauth":
 			p, ok = opencodeOAuth[id]
 			ok = ok && str(e, "enterpriseUrl") == ""

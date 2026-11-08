@@ -14,13 +14,13 @@ import (
 
 // KeyProviders are the providers whose API keys devvm agent login saves
 // for the agent, sorted, when it saves one for each (agents.ProviderKeys):
-// those whose keys the proxy puts in (opencodeAPI). None for an agent with
-// one key (agents.OneKey: Codex's, OpenAI's, which needs no name) or none.
-// Any other provider's key would reach the VM as it is, so it's never
-// saved this way.
+// those whose keys the proxy puts in (agents.Providers). None for an agent
+// with one key (agents.OneKey: Codex's, OpenAI's, which needs no name) or
+// none. Any other provider's key would reach the VM as it is, so it's
+// never saved this way.
 func KeyProviders(agent string) []string {
 	if d, ok := agents.Get(agent); ok && d.Keys == agents.ProviderKeys {
-		return slices.Sorted(maps.Keys(opencodeAPI))
+		return agents.ProviderIDs()
 	}
 	return nil
 }

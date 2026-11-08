@@ -6,6 +6,7 @@
 // tool is also its line in assets/shared-tools/mise.toml's [tool_alias] and its policy,
 // assets/shared-tools/<Name>.policy; its login files' formats are internal/agentlogin's; and
 // its row in the docs' Supported agents table names it (TestDefsComplete checks them all).
+// Providers are the model providers whose API keys the VM's proxy puts in for opencode and pi.
 // Adding an agent is a Def here and those files; Contributing's "Adding a coding agent" lists
 // them.
 package agents
@@ -82,10 +83,50 @@ const (
 	// OneKey: one key for the agent's own provider, given without --provider (Codex's OpenAI
 	// key).
 	OneKey
-	// ProviderKeys: a key for each provider whose hosts devvm knows, named with --provider
-	// (agentlogin.KeyProviders).
+	// ProviderKeys: a key for each of Providers, named with --provider (agentlogin.KeyProviders).
 	ProviderKeys
 )
+
+// Provider is a model provider whose API keys the VM's proxy puts in for the agents with a key
+// for each provider (ProviderKeys).
+type Provider struct {
+	// ID is its entry's name in those agents' login files, and --provider's value.
+	ID string
+	// Display is its name as people know it: OpenRouter.
+	Display string
+	// Hosts are the hosts the agents send its API key to, and no others: the proxy puts the key
+	// in for them alone, and allows them.
+	Hosts []string
+	// Header is the request header the agents send the key in, where the proxy swaps the
+	// placeholder for it.
+	Header string
+}
+
+// Providers are the providers whose API keys the proxy puts in, sorted by ID: every list of
+// them comes from here, and the docs' table of them names each (TestProvidersComplete).
+var Providers = []Provider{
+	{ID: "anthropic", Display: "Anthropic", Hosts: []string{"api.anthropic.com"}, Header: "x-api-key"},
+	{ID: "openai", Display: "OpenAI", Hosts: []string{"api.openai.com"}, Header: "Authorization"},
+	{ID: "openrouter", Display: "OpenRouter", Hosts: []string{"openrouter.ai"}, Header: "Authorization"},
+}
+
+// ProviderIDs are the providers' IDs, sorted.
+func ProviderIDs() []string {
+	out := make([]string, 0, len(Providers))
+	for _, p := range Providers {
+		out = append(out, p.ID)
+	}
+	return out
+}
+
+// ProviderOf returns the provider whose ID is id, false when none is.
+func ProviderOf(id string) (Provider, bool) {
+	i := slices.IndexFunc(Providers, func(p Provider) bool { return p.ID == id })
+	if i < 0 {
+		return Provider{}, false
+	}
+	return Providers[i], true
+}
 
 // Env is a variable of the guest environment that every VM's shells get.
 type Env struct{ Name, Value string }
