@@ -1077,7 +1077,9 @@ func netOpencodePassKeys(n *netRun, oc, vm string) {
 		if has, err := vmHas(s, vm, false, "cat ~/.local/share/opencode/auth.json", "e2efake-ghe"); err != nil || has {
 			return failed("the VM's auth.json holds the OAuth login's tokens", err)
 		}
-		if has, err := vmHas(s, vm, true, "opencode auth export ollama", opencodeLocalKey); err != nil || !has {
+		// Every credential: auth export TARGET resolves the target among opencode's own
+		// integrations, which a local server's isn't.
+		if has, err := vmHas(s, vm, true, "opencode auth export", opencodeLocalKey); err != nil || !has {
 			return errors.New("the VM's opencode didn't import the passed key\n" + n.opencodeWhy(vm))
 		}
 		return nil
