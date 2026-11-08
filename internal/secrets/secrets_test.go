@@ -562,8 +562,8 @@ func TestVMCopies(t *testing.T) {
 		}
 	}
 	if want := []string{
-		"login_kept agent=Codex file=auth.json keys=b, extra", "login_kept agent=opencode file=auth.json keys=llama",
-		"login_oauth_withheld agent=opencode name=opencode providers=other", "login_withheld agent=pi name=pi providers=groq, openai-codex",
+		"login_kept agent=Codex file=auth.json keys=b, extra",
+		"login_withheld agent=opencode name=opencode providers=llama, other", "login_withheld agent=pi name=pi providers=groq, openai-codex",
 	}; !slices.Equal(warned, want) {
 		t.Errorf("warned %q, want %q", warned, want)
 	}
@@ -574,7 +574,7 @@ func TestVMCopies(t *testing.T) {
 	if err := os.MkdirAll(s.Dirs.Config, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(s.Dirs.ConfigFile(), []byte("[pass-keys]\npi = [\"groq\"]\n"), 0o600); err != nil {
+	if err := os.WriteFile(s.Dirs.ConfigFile(), []byte("[pass-keys]\npi = [\"groq\"]\nopencode = [\"llama\", \"other\"]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var noted []string
@@ -587,6 +587,15 @@ func TestVMCopies(t *testing.T) {
 	case !strings.Contains(string(data), `"key": "g"`):
 		t.Errorf("pi's VM copy lacks the passed key: %s", data)
 	case !slices.Equal(noted, []string{"login_passed agent=pi providers=groq"}) || !slices.Equal(warned, []string{"login_withheld agent=pi name=pi providers=openai-codex"}):
+		t.Errorf("noted %q, warned %q", noted, warned)
+	}
+	// opencode's list passes its llama key, but never its other OAuth login.
+	noted, warned = nil, nil
+	data, err = s.VMLogin("opencode", salt)
+	switch {
+	case err != nil || !strings.Contains(string(data), `"key": "local"`) || strings.Contains(string(data), `"refresh"`):
+		t.Errorf("opencode's VM copy: %s, %v", data, err)
+	case !slices.Equal(noted, []string{"login_passed agent=opencode providers=llama"}) || !slices.Equal(warned, []string{"login_withheld agent=opencode name=opencode providers=other"}):
 		t.Errorf("noted %q, warned %q", noted, warned)
 	}
 	// A config.toml devvm can't read fails the copy.

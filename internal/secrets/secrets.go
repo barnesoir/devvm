@@ -303,10 +303,8 @@ func (s *Store) VMLogin(kind, salt string) ([]byte, error) {
 	} else if list != "" {
 		s.Warn(msg.LoginKept(d.Display, path.Base(l.Rel), list))
 	}
-	if list := strings.Join(c.Withheld, ", "); list != "" && d.PassKeys {
+	if list := strings.Join(c.Withheld, ", "); list != "" {
 		s.Warn(msg.LoginWithheld(d.Display, d.Name, list))
-	} else if list != "" {
-		s.Warn(msg.LoginOauthWithheld(d.Display, d.Name, list))
 	}
 	return c.Data, err
 }

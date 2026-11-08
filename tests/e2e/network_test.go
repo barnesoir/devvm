@@ -1002,9 +1002,86 @@ func netOpencodeKeys(n *netRun) {
 		}
 		return nil
 	}, Tail(40))
+	netOpencodePassKeys(n, oc, vm)
 	if vm != "" {
 		_, _ = s.Run(devvmCmd(s, oc, "", n.home(), "rm", "--force", "--no-export"))
 	}
+}
+
+// opencodeLocalKey is the fake key of a local model server's in the
+// store's opencode login, which devvm withholds unless config.toml's
+// [pass-keys] passes it.
+const opencodeLocalKey = "sk-local-e2efake-ollama"
+
+// netOpencodePassKeys: a key of opencode's that the proxy can't put in, a
+// local model server's, reaches the VM, vm in the folder oc, only once
+// config.toml's [pass-keys] lists its provider, and then opencode 2's
+// database gets it too; an OAuth login it doesn't bind never does, listed
+// or not. The store's login and config.toml are put back after.
+func netOpencodePassKeys(n *netRun, oc, vm string) {
+	s := n.s
+	store := filepath.Join(n.logins, "opencode", ".local", "share", "opencode", "auth.json")
+	cfg := filepath.Join(s.sb.config(), "devvm", "config.toml")
+	savedLogin, _ := os.ReadFile(store)
+	savedCfg, _ := os.ReadFile(cfg)
+	defer func() {
+		_ = os.WriteFile(store, savedLogin, 0o600)
+		_ = os.WriteFile(cfg, savedCfg, 0o600)
+	}()
+	launch := func() (Res, error) {
+		_, r, err := launchWith(s, oc, n.home("DEVVM_MESSAGES=names"))
+		return r, err
+	}
+	s.Check("opencode's key for a provider devvm doesn't bind is withheld from the VM, warned, and the OAuth login it doesn't bind holds no token", func() error {
+		var m map[string]any
+		if vm == "" || json.Unmarshal(savedLogin, &m) != nil {
+			return errors.New("no second VM, or no store login to add to")
+		}
+		m["ollama"] = map[string]any{"type": "api", "key": opencodeLocalKey}
+		m["copilot-ghe"] = map[string]any{"type": "oauth", "access": "at-e2efake-ghe", "refresh": "rt-e2efake-ghe", "expires": 1, "enterpriseUrl": "ghe.example.com"}
+		b, _ := json.Marshal(m)
+		if err := os.WriteFile(store, b, 0o600); err != nil {
+			return err
+		}
+		r, err := launch()
+		switch {
+		case err != nil:
+			return failed("the launch failed:\n"+r.Out, err)
+		case !Matches(r.Out, `^devvm: login_withheld agent=opencode name=opencode providers=(.*, )?copilot-ghe, (.*, )?ollama(, .*)?$`):
+			return errors.New("no warning names the withheld logins:\n" + r.Out)
+		}
+		if has, err := vmHas(s, vm, false, "cat ~/.local/share/opencode/auth.json", "e2efake-ghe", opencodeLocalKey); err != nil || has {
+			return failed("the VM's auth.json holds a withheld key or token", err)
+		}
+		if has, err := vmHas(s, vm, true, "opencode auth export", opencodeLocalKey); err != nil || has {
+			return failed("the VM's opencode holds the withheld key", err)
+		}
+		return nil
+	}, Tail(40))
+	s.Check("... and once config.toml's [pass-keys] lists ollama, the VM and its opencode 2 get that key, noted, but never the OAuth login", func() error {
+		if vm == "" {
+			return errNo
+		}
+		if err := os.WriteFile(cfg, append(bytes.Clone(savedCfg), []byte("\n[pass-keys]\nopencode = [\"ollama\", \"copilot-ghe\"]\n")...), 0o600); err != nil {
+			return err
+		}
+		r, err := launch()
+		switch {
+		case err != nil:
+			return failed("the launch failed:\n"+r.Out, err)
+		case !Matches(r.Out, `^login_passed agent=opencode providers=ollama$`):
+			return errors.New("no note names the passed key:\n" + r.Out)
+		case vmOut(s, vm, "jq -r .ollama.key ~/.local/share/opencode/auth.json") != opencodeLocalKey:
+			return errors.New("the VM's auth.json lacks the passed key")
+		}
+		if has, err := vmHas(s, vm, false, "cat ~/.local/share/opencode/auth.json", "e2efake-ghe"); err != nil || has {
+			return failed("the VM's auth.json holds the OAuth login's tokens", err)
+		}
+		if has, err := vmHas(s, vm, true, "opencode auth export ollama", opencodeLocalKey); err != nil || !has {
+			return errors.New("the VM's opencode didn't import the passed key\n" + n.opencodeWhy(vm))
+		}
+		return nil
+	}, Tail(40))
 }
 
 // piKey is the fake Anthropic API key devvm agent login pi saves.

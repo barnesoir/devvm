@@ -13,7 +13,7 @@ package agentlogin
 //   - passed: an api_key entry of a provider the user listed (File.Pass, config.toml's
 //     [pass-keys]), such as a local model server's, which goes as it is.
 //   - withheld: every other entry, OAuth logins included. The VM gets only the fields in
-//     piWithheldKeep, so no key, token or env value of it reaches the VM.
+//     withheldKeep (withheldEntry), so no key, token or env value of it reaches the VM.
 
 import (
 	"errors"
@@ -55,10 +55,6 @@ func piBindings(m map[string]any, salt string) []proxy.Binding {
 	return bs
 }
 
-// piWithheldKeep are the fields a withheld entry keeps in the VM's copy: those that name an
-// account or how it logs in, never a key or a token.
-var piWithheldKeep = []string{"type", "expires", "accountId", "enterpriseUrl", "projectId", "email", "scope", "scopes", "clientId"}
-
 // piPassed reports whether pi's entry for provider id goes into the VM's copy as it is: an api_key
 // entry of a provider in pass that devvm doesn't bind.
 func piPassed(m map[string]any, id string, pass []string) bool {
@@ -67,8 +63,7 @@ func piPassed(m map[string]any, id string, pass []string) bool {
 }
 
 // piVM is the VM's copy of pi's logins m: bound entries as {type, key} with their placeholders,
-// passed ones as they are, and withheld ones with piWithheldKeep's fields alone, each a plain
-// value or a list of strings.
+// passed ones as they are, and withheld ones as withheldEntry makes them.
 func piVM(m map[string]any, salt string, pass []string) map[string]any {
 	out := map[string]any{}
 	for _, b := range piBindings(m, salt) {
@@ -82,54 +77,17 @@ func piVM(m map[string]any, salt string, pass []string) map[string]any {
 			out[id] = m[id]
 			continue
 		}
-		e, kept := obj(m, id), map[string]any{}
-		for _, k := range piWithheldKeep {
-			if v, ok := e[k]; ok && piPlain(v) {
-				kept[k] = v
-			}
-		}
-		out[id] = kept
+		out[id] = withheldEntry(obj(m, id))
 	}
 	return out
 }
 
-// piPlain: a string, number, bool or null, or a list of strings.
-func piPlain(v any) bool {
-	switch t := v.(type) {
-	case map[string]any:
-		return false
-	case []any:
-		for _, x := range t {
-			if _, ok := x.(string); !ok {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// piPasses returns the providers of pi's whose entries the VM's copy holds as they are (passed),
-// sorted.
-func piPasses(m map[string]any, pass []string) []string {
-	var out []string
-	for _, id := range sortedKeys(m) {
-		if piPassed(m, id, pass) {
-			out = append(out, id)
-		}
-	}
-	return out
-}
-
-// piWithheld returns the providers of pi's whose entries the VM's copy holds without their keys and
-// tokens (neither bound nor passed), sorted.
-func piWithheld(m map[string]any, pass []string) []string {
-	var out []string
-	for _, id := range sortedKeys(m) {
-		if _, bound := piKey(m, id); !bound && !piPassed(m, id, pass) {
-			out = append(out, id)
-		}
-	}
-	return out
+// piSplit returns the providers of pi's whose entries the VM's copy holds as they are (passed)
+// and those it holds without their keys and tokens (neither bound nor passed), each sorted.
+func piSplit(m map[string]any, pass []string) (passed, withheld []string) {
+	return splitUnbound(m,
+		func(id string) bool { _, bound := piKey(m, id); return bound },
+		func(id string) bool { return piPassed(m, id, pass) })
 }
 
 // piVMDropped are the keys of pi's settings.json that the VM's copy leaves out, as each would undo

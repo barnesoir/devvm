@@ -2567,10 +2567,6 @@ other = "{{.vm}} has Claude Code, so the VM always uses the Claude Code token. T
 description = "agent is the agent as people know it, such as Codex; file is its login file's name, such as auth.json; keys lists what of it devvm doesn't know, its top-level keys or its providers, comma-separated"
 other = "The VM gets {{.keys}} from {{.agent}}'s {{.file}} unchanged."
 
-[login_oauth_withheld]
-description = "agent is the agent as people know it, such as opencode, and name its name in devvm's commands; providers lists its OAuth login providers, comma-separated"
-other = "The VM gets {{.agent}}'s {{.providers}} login without its OAuth tokens, because devvm keeps them on this machine. To use that provider in the VM, log in to it with an API key on this machine and run devvm agent import --force {{.name}}."
-
 [login_passed]
 description = "agent is the agent as people know it, such as pi; providers lists its providers that config.toml's [pass-keys] lists, comma-separated"
 other = "The VM gets {{.agent}}'s {{.providers}} login unchanged, as config.toml's [pass-keys] asks."

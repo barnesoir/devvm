@@ -72,6 +72,7 @@ no-proxy = "localhost,.example.com"
 
 # Providers whose API keys an agent's VMs get as they are.
 [pass-keys]
+opencode = ["ollama"]
 pi = ["ollama"]
 ```
 
@@ -79,7 +80,7 @@ Each key takes what its command takes. `network` is a tier, `open`, `internet`, 
 
 The `[proxy]` table is the [company proxy](../safety/network.md#behind-a-company-proxy) that every VM's proxy, builds and devvm's own downloads go through when the shell you run devvm in sets neither `HTTPS_PROXY` nor `HTTP_PROXY`, whatever the VM's tier. No VM gets the company proxy's settings itself. That shell's settings win over the whole table. `https` and `http` take what `HTTPS_PROXY` and `HTTP_PROXY` take, an `http://` URL or `host:port`, and `no-proxy` takes what `NO_PROXY` takes. A URL never holds a password, and devvm refuses one that does, so put only the user in it and save the password with `devvm secret set proxy`. No command saves the proxy, so it's only ever in `config.toml`.
 
-The `[pass-keys]` table names, for an agent, the providers whose API keys its VMs get as they are, which devvm otherwise keeps on this machine because the VM's proxy can't put them in, such as a local model server's. `pi` is the one agent it takes so far, with a list of pi's provider IDs as pi's `auth.json` names them, in lower case, such as `["ollama"]` ([pi logins](coding-agents.md#pi-logins)). devvm refuses another agent, a name that isn't a provider's ID and a repeat (`config.toml` names the line). Every VM with the agent gets the change at its next launch. No command saves it, so it's only ever in `config.toml`.
+The `[pass-keys]` table names, for an agent, the providers whose API keys its VMs get as they are, which devvm otherwise keeps on this machine because the VM's proxy can't put them in, such as a local model server's. It takes `opencode` and `pi`, each with a list of the agent's provider IDs as its `auth.json` names them, in lower case, such as `["ollama"]` ([opencode logins](coding-agents.md#codex-and-opencode-logins), [pi logins](coding-agents.md#pi-logins)). devvm refuses another agent, a name that isn't a provider's ID and a repeat (`config.toml` names the line). Every VM with the agent gets the change at its next launch. No command saves it, so it's only ever in `config.toml`.
 
 ### An Ubuntu mirror
 

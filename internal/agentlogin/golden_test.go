@@ -50,7 +50,8 @@ func goldenLogins() map[string]string {
 			"zz_extra": map[string]any{"kept": true}, "aa_other": "kept",
 		}),
 		Opencode: enc(map[string]any{
-			"anthropic":      map[string]any{"type": "api", "key": "sk-ant-e2efake"},
+			"anthropic":      map[string]any{"type": "api", "key": "sk-ant-e2efake", "metadata": map[string]any{"m": "md-e2efake"}},
+			"ollama":         map[string]any{"type": "api", "key": "ollama-local", "metadata": map[string]any{"host": "kept"}},
 			"openrouter":     map[string]any{"type": "api", "key": "sk-or-e2efake"},
 			"openai":         map[string]any{"type": "oauth", "access": access, "refresh": "rt-e2efake", "expires": future.UnixMilli(), "accountId": "acct-1"},
 			"github-copilot": map[string]any{"type": "oauth", "access": "gho_e2efake", "refresh": "gho_e2efake", "expires": 0},

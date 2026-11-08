@@ -165,7 +165,7 @@ var Defs = []Def{
 			OpencodeData + "/auth.json", OpencodeData + "/account.json", OpencodeData + "/mcp-auth.json", OpencodeData + "/bin",
 		},
 		Env:     []Env{{"OPENCODE_DISABLE_AUTOUPDATE", "1"}},
-		ChatGPT: true, Keys: ProviderKeys,
+		ChatGPT: true, Keys: ProviderKeys, PassKeys: true,
 	},
 	{
 		Name: Pi, Display: "pi", Folder: PiFolder,

@@ -30,10 +30,12 @@ var errKeyProvider = errors.New("no API key devvm puts in for that provider")
 
 // OpencodeImport is what opencode's auth import reads to give a VM whose opencode has made its
 // database the logins of vmCopy, the VM's copy of the store's opencode login (File.VMCopy, which
-// holds placeholders alone): opencode 2 keeps its logins there and reads auth.json only as it
-// makes it. It's each API key devvm puts in (KeyProviders) and OpenAI's Codex login as opencode's
-// auth export prints them, sorted by provider, under IDs of devvm's (cred_devvm_<provider>), which
-// the VM's setup logs out of before it imports a new set, so the user's own credentials stay.
+// holds placeholders and passed keys alone): opencode 2 keeps its logins there and reads auth.json
+// only as it makes it. It's each API key the copy holds, the placeholders of KeyProviders' and the
+// keys config.toml's [pass-keys] passes with their metadata (a withheld entry holds no key), and
+// OpenAI's Codex login, as opencode's auth export prints them, sorted by provider, under IDs of
+// devvm's (cred_devvm_<provider>), which the VM's setup logs out of before it imports a new set,
+// so the user's own credentials stay.
 func OpencodeImport(vmCopy []byte) ([]byte, error) {
 	d := json.NewDecoder(bytes.NewReader(vmCopy))
 	d.UseNumber()
@@ -46,8 +48,11 @@ func OpencodeImport(vmCopy []byte) ([]byte, error) {
 		e := obj(m, id)
 		var v map[string]any
 		switch {
-		case str(e, "type") == "api" && slices.Contains(KeyProviders(agents.Opencode), id) && str(e, "key") != "":
+		case str(e, "type") == "api" && str(e, "key") != "":
 			v = map[string]any{"type": "key", "key": str(e, "key")}
+			if md := obj(e, "metadata"); len(md) > 0 {
+				v["metadata"] = md
+			}
 		case str(e, "type") == "oauth" && id == "openai" && str(e, "access") != "":
 			// opencode 2 (checked at v2.2.5) needs a method, Codex's in a browser, whose tokens
 			// come from the endpoint the store refreshes at, and a whole number for expires.
