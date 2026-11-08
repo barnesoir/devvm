@@ -59,10 +59,10 @@ func newFixture(t *testing.T, name string) *fixture {
 }
 
 // newVM sets up protection as up does for a VM just made: its mode
-// (NewMode), recorded, then NewVM.
+// (NewSection), recorded, then NewVM.
 func (f *fixture) newVM(off bool) error {
-	mode := f.p.NewMode(off)
-	if err := record(f.t.Context(), f.vm, func(g *InVM) { g.Mode = mode }); err != nil {
+	n := f.p.NewSection(off)
+	if err := record(f.t.Context(), f.vm, func(g *InVM) { g.Mode, g.Chosen = n.Mode, n.Chosen }); err != nil {
 		return err
 	}
 	return f.p.NewVM(f.t.Context(), f.vm)
@@ -405,6 +405,56 @@ func TestNewVMGitdirOutside(t *testing.T) {
 	}
 }
 
+// A gitlink whose .git file names a folder of the project's own source,
+// or whose .git folder isn't a git dir, gets nothing in that folder
+// locked or made; the check names it, once.
+func TestCheckGitdirNotGit(t *testing.T) {
+	needGit(t)
+	f := newFixture(t, "p")
+	f.git(f.dir, "init", "-q")
+	f.git(f.dir, "commit", "-q", "--allow-empty", "-m", "x")
+	if err := f.newVM(false); err != nil {
+		t.Fatal(err)
+	}
+	mkdirs(t, f.path("src/hooks"), f.path("lib"), f.path("evil"), f.path("bad/.git/hooks"))
+	write(t, f.path("src/hooks/useThing.ts"), "export {}\n")
+	write(t, f.path("src/config"), "x\n")
+	write(t, f.path("evil/.git"), "gitdir: ../src\n")
+	write(t, f.path("lib/.git"), "gitdir: ../lib\n") // no hooks folder to make there
+	head := f.git(f.dir, "rev-parse", "HEAD")
+	for _, sub := range []string{"evil", "lib", "bad"} {
+		f.git(f.dir, "update-index", "--add", "--cacheinfo", "160000,"+head+","+sub)
+	}
+	f.checked(false)
+	for _, path := range []string{"src", "src/hooks", "src/config", "lib", "lib/hooks", "bad/.git", "bad/.git/hooks"} {
+		if f.locked(f.path(path)) {
+			t.Errorf("locked %s: %q", path, f.flags)
+		}
+	}
+	if _, err := os.Lstat(f.path("lib/hooks")); err == nil {
+		t.Error("made lib/hooks")
+	}
+	for _, want := range []string{
+		"git_gitdir_not_git git=" + f.path("src") + " sub=" + f.path("evil"),
+		"git_gitdir_not_git git=" + f.path("lib") + " sub=" + f.path("lib"),
+		"git_gitdir_not_git git=" + f.path("bad/.git") + " sub=" + f.path("bad"),
+	} {
+		if !f.warned(want) {
+			t.Errorf("warnings %q lack %s", f.warns.Names(), want)
+		}
+	}
+	if f.warned("git_embedded_new") || f.warned("git_hooks_unlocked") {
+		t.Errorf("reported as a git dir: %q", f.warns.Names())
+	}
+	if got := f.section().Made.GitDirs; len(got) > 0 {
+		t.Errorf("git_dirs = %q", got)
+	}
+	f.checked(false)
+	if f.warned("git_gitdir_not_git") {
+		t.Errorf("again: warnings %q", f.warns.Names())
+	}
+}
+
 func TestWorktreeStrays(t *testing.T) {
 	f := newFixture(t, "p")
 	mkdirs(t, f.path(".git/worktrees/ok"), f.path(".git/worktrees/moved"), f.path(".git/worktrees/gone"), f.path("evil"))
@@ -539,30 +589,27 @@ func TestSetNext(t *testing.T) {
 	}
 }
 
-// Off: nothing is locked. On hosts without locks it's off, saying so when
-// there's a .git.
+// Off: nothing is locked, and off is the user's choice. On hosts without
+// locks it's off, not chosen, and creating says nothing: the launches
+// warn (WarnUnprotected).
 func TestNewVMOffAndLinux(t *testing.T) {
 	f := newFixture(t, "p")
 	mkdirs(t, f.path(".git/hooks"))
 	if err := f.newVM(true); err != nil {
 		t.Fatal(err)
 	}
-	if Mode(f.vm) != "off" || len(f.flags) > 0 || len(f.warns.Names()) > 0 {
-		t.Errorf("off: %s, locks %q, warnings %q", Mode(f.vm), f.flags, f.warns.Names())
+	if Mode(f.vm) != "off" || !f.section().Chosen || len(f.flags) > 0 || len(f.warns.Names()) > 0 {
+		t.Errorf("off: %s, chosen %t, locks %q, warnings %q", Mode(f.vm), f.section().Chosen, f.flags, f.warns.Names())
 	}
 	f.p.CanLock = false
 	if err := f.newVM(false); err != nil {
 		t.Fatal(err)
 	}
-	if Mode(f.vm) != "off" || len(f.flags) > 0 || !slices.Equal(f.warns.Names(), []string{"git_protect_needs_macos_new"}) {
-		t.Errorf("linux: %s, locks %q, warnings %q", Mode(f.vm), f.flags, f.warns.Names())
+	if Mode(f.vm) != "off" || f.section().Chosen || len(f.flags) > 0 || len(f.warns.Names()) > 0 {
+		t.Errorf("linux: %s, chosen %t, locks %q, warnings %q", Mode(f.vm), f.section().Chosen, f.flags, f.warns.Names())
 	}
 	if err := os.RemoveAll(f.path(".git")); err != nil {
 		t.Fatal(err)
-	}
-	f.warns.Reset()
-	if err := f.newVM(false); err != nil || len(f.warns.Names()) > 0 {
-		t.Errorf("linux without .git: %v, warnings %q", err, f.warns.Names())
 	}
 	f.p.CanLock = true
 	if err := f.newVM(false); err != nil || Mode(f.vm) != "on" || len(f.flags) > 0 {
@@ -902,7 +949,7 @@ func TestNewHome(t *testing.T) {
 	t.Setenv("HOME", "/elsewhere")
 	p := New("/p", "/h", nil)
 	for in, want := range map[string]string{"~": "/h", "~/x": "/h/x", "~x/y": "~x/y", "/a": "/a"} {
-		if got := p.expandHome(in); got != want {
+		if got := expandHome(p.Home, in); got != want {
 			t.Errorf("expandHome(%q) = %q, want %q", in, got, want)
 		}
 	}

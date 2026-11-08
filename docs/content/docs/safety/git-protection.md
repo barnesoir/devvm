@@ -54,6 +54,7 @@ Every launch of an existing VM, and `devvm stop`, check `.git` again, and devvm 
 
 - **A repo that appeared** in the folder after its VM was made. devvm locks it from then on, but if you didn't make it, check its hooks and config.
 - **Hooks in a folder devvm hadn't locked,** because the folder wasn't there to lock or belongs to a new submodule.
+- **A submodule whose git folder isn't one.** The VM can name any folder in the project as a submodule's git folder, such as your `src`, so devvm locks nothing in a folder that doesn't look like a git folder, and names the submodule instead.
 - **A path that's a symlink or under one.** devvm never locks anything through a symlink, because the VM could point one at a file elsewhere on this machine, so it leaves that path unlocked.
 - **A path that moved while devvm locked it.** devvm leaves it unlocked and takes the lock off wherever it landed, so check `.git`.
 
@@ -70,4 +71,30 @@ The lock covers `.git`, and the VM can still put things elsewhere that git on th
 
 ## Linux hosts
 
-Linux has no immutable flag that a user can set, so VMs on Linux hosts have no `.git` protection, and the VM can change `.git` hooks and config, which run on the host. devvm says so when it creates a VM for a folder with a `.git`, and it refuses `devvm git-protect on` and `strict`. [`--clone`](../using/clone.md) keeps the VM out of `.git` instead.
+Linux has no immutable flag that a user can set, so VMs on Linux hosts have no `.git` protection, and the VM can change `.git` hooks and config, which run on the host. devvm refuses `devvm git-protect on` and `strict` there, and [`--clone`](../using/clone.md) keeps the VM out of `.git` instead, so use it for any repo where you don't trust what runs in the VM.
+
+### The warning at each launch
+
+Each launch of a VM that mounts a folder with a `.git` warns that the VM can change its hooks and config, which run on this machine. That includes the launch that creates the VM, and launches of a VM that's already running. Once you've read the warning and decided to go on without protection, run `devvm git-protect off` in the folder. devvm records that you chose it and stops warning for that VM, but it still names the changes that the next section describes. A VM that you create with `--no-git-protect` doesn't warn either, and a `--clone` VM never warns, because it mounts no `.git`.
+
+### When devvm names a change
+
+devvm can't stop the VM from changing `.git` on a Linux host, but it notices the change afterwards. When devvm creates a VM, it records a hash of each path that a lock would cover on macOS, which are the hooks in `.git/hooks`, `.git/config` and the rest of [what's locked](../internals/git-protection.md#whats-locked), submodules' included. It also hashes `.git/commondir`, whether it's there or not, and what the config hands over to the project folder: the files that an `include.path` leads to, and the hooks folder that `core.hooksPath` names, such as husky's `.husky`. Each launch that finds the VM stopped, and `devvm stop`, hash them again and name every path that changed since the last check, such as `.git/config` and `.git/hooks/pre-commit`. A warning names ten paths at most, and then how many more changed. The same checks report what a lock can't stop either, as they do on macOS: a `.git` that was replaced, a `commondir`, a repo or submodule that appeared, and includes, hook links and a `core.hooksPath` into the project folder ([not covered](#not-covered)). A launch of a VM that's already running checks nothing, so run `devvm stop` when you want the check. A VM that devvm has no hashes for yet, such as one that an older devvm made, records them at its first check and names nothing.
+
+devvm names a change only after it happened, so git on this machine may already have run a changed hook or read a changed config. devvm can't tell who made a change, so it also names your own, such as a `git remote add` or `git push -u` that you ran on this machine. When it names a path that you didn't change, check it before you run git in the folder:
+
+- `git config --list --show-origin` shows each setting of the repo and the file it comes from. Look for settings that run a program, such as `core.fsmonitor`, `core.hooksPath`, `core.sshCommand`, `core.pager`, `filter.*` and `include.path`.
+- `ls -la .git/hooks` lists the hooks, and git runs a hook there by its name, such as `pre-commit`, so read every file whose name doesn't end in `.sample`.
+
+If you find something that you didn't put there, remove it, and use [`--clone`](../using/clone.md) for that repo.
+
+### What the watch can't see
+
+The watch isn't a security boundary, and it doesn't stop anything. It compares what's in `.git` when the VM is stopped with what was there at the last check, so it misses a change that the VM made and then undid before it stopped, even though git on this machine may have run the change in between. It also can't fully watch some paths, and it names them at every check until they're gone:
+
+- **A symlink, or a path under one,** such as a hook that's a symlink, or a `.git` that's a symlink. devvm never follows a symlink out of the project folder, so it can't see changes to what such a link points to. For a link that stays inside the project folder, it hashes what the link leads to as well.
+- **A file larger than 16 MiB,** which devvm records by its size, inode and change time, so it notices a change that keeps the size but can't hash the file.
+- **A hooks folder with more than 1,000 entries,** which devvm records by its count and change time. It always hashes the hooks that git runs, at the folder's top, before the rest.
+- **What's past 2,000 paths in all,** across every git folder and hooks folder of the repo.
+
+A repo rarely has any of these, so when devvm names one that you didn't make, check what it holds, and use [`--clone`](../using/clone.md) for that repo.

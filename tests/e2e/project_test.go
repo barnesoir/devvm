@@ -495,7 +495,7 @@ func projectGit(s *S, w *webVM) {
 	p, vm := w.p, w.vm
 	if runtime.GOOS != "darwin" {
 		s.Check("off on Linux (no chflags), and says so", func() error {
-			if w.state(s)["git.mode"] != "off" || !grepF(w.launch, s.Msg("git_protect_needs_macos_new")) {
+			if w.state(s)["git.mode"] != "off" || !grepF(w.launch, s.Msg("git_unprotected", "vm="+vm)) {
 				return errors.New("git protection isn't off, or the launch didn't say so")
 			}
 			return nil
@@ -781,6 +781,7 @@ func projectGitProtect(s *S, w *webVM) {
 			}
 			return nil
 		})
+		projectGitWatch(s, w)
 		return
 	}
 	s.Check("a swapped .git is reported", func() error {
@@ -795,11 +796,15 @@ func projectGitProtect(s *S, w *webVM) {
 	_ = os.Rename(filepath.Join(p, ".git-old"), filepath.Join(p, ".git"))
 	// (virtiofs shows the VM the restored .git after a moment.) Locks are set while it's stopped:
 	// devvm stop sets them.
+	// A submodule whose .git file names the project's own src, which isn't
+	// a git folder, gets nothing in src locked.
 	s.Check("a submodule git folder the VM adds is reported, and locked by devvm stop", func() error {
 		if _, err := s.Limactl("shell", "--workdir", "/", vm, "bash", "-c", "cd "+p+` &&
       for i in 1 2 3 4 5 6 7 8 9 10; do git rev-parse >/dev/null 2>&1 && break; sleep 1; done && git init -q vmsub &&
       git -C vmsub -c user.email=e@e -c user.name=e commit -q --allow-empty -m s &&
-      git update-index --add --cacheinfo 160000,$(git -C vmsub rev-parse HEAD),vmsub`); err != nil {
+      git update-index --add --cacheinfo 160000,$(git -C vmsub rev-parse HEAD),vmsub &&
+      mkdir -p src/hooks evil && echo 'export {}' > src/hooks/useThing.ts && echo 'gitdir: ../src' > evil/.git &&
+      git update-index --add --cacheinfo 160000,$(git -C vmsub rev-parse HEAD),evil`); err != nil {
 			return err
 		}
 		r, err := s.Devvm(p, "stop")
@@ -808,6 +813,9 @@ func projectGitProtect(s *S, w *webVM) {
 		}
 		if !grepF(r.Out, FirstLine(s.Msg("git_embedded_new", "git="+p+"/vmsub/.git"))) || s.Status(vm) != "Stopped" || !Locked(s, filepath.Join(p, "vmsub", ".git", "config")) {
 			return errors.New("devvm stop didn't report it and lock it:\n" + r.Out)
+		}
+		if !grepF(r.Out, FirstLine(s.Msg("git_gitdir_not_git", "git="+p+"/src", "sub="+p+"/evil"))) || Locked(s, filepath.Join(p, "src", "hooks")) {
+			return errors.New("devvm stop didn't report evil, or locked src/hooks:\n" + r.Out)
 		}
 		return nil
 	})
@@ -877,6 +885,35 @@ func projectGitProtect(s *S, w *webVM) {
 		}
 		return nil
 	})
+}
+
+// projectGitWatch: on Linux, .git/config that the VM changes is named
+// when devvm stop finds it, after the fact; then the VM is as it was.
+func projectGitWatch(s *S, w *webVM) {
+	p, vm := w.p, w.vm
+	s.Check("on Linux, devvm stop names the .git/config the VM changed", func() error {
+		if _, err := DevvmIn(s, p, "exit\n", nil); err != nil {
+			return err
+		}
+		if _, err := s.InVM(vm, "printf '[e2e]\\n\\twatched = vm\\n' >> "+p+"/.git/config"); err != nil {
+			return err
+		}
+		r, err := s.Devvm(p, "stop")
+		if err != nil {
+			return err
+		}
+		if !grepF(r.Out, s.Msg("git_changed", "paths=.git/config", "vm="+vm)) {
+			return errors.New("devvm stop didn't name .git/config:\n" + r.Out)
+		}
+		if again, _ := s.Devvm(p, "stop"); grepF(again.Out, s.Msg("git_changed", "paths=.git/config", "vm="+vm)) {
+			return errors.New("named twice:\n" + again.Out)
+		}
+		return nil
+	})
+	// Put back, and recorded as that by another devvm stop, then started again.
+	_, _ = s.Run(Cmd{Args: []string{"git", "config", "--unset", "e2e.watched"}, Dir: p})
+	_, _ = s.Devvm(p, "stop")
+	_, _ = DevvmIn(s, p, "exit\n", nil)
 }
 
 // claudeSlug is the name Claude Code gives a folder's sessions' folder.

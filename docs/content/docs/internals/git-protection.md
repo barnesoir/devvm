@@ -13,7 +13,7 @@ On macOS devvm locks with the user-immutable flag (`chflags uchg`), which even r
 devvm locks these paths:
 
 - `.git/hooks` and `.git/config`. A repo without a `hooks` folder gets an empty one, locked, so the VM can't make one.
-- The same paths for each submodule devvm finds, submodules of submodules included. Those are the git folders under `.git/modules`, and those in the working tree, which are `sub/.git` or the folder that a `sub/.git` file points to. devvm finds the submodules from the index, which it reads with `core.fsmonitor` off.
+- The same paths for each submodule devvm finds, submodules of submodules included. Those are the git folders under `.git/modules`, and those in the working tree, which are `sub/.git` or the folder that a `sub/.git` file points to. devvm finds the submodules from the index, which it reads with `core.fsmonitor` off. It takes a folder for a git folder only when it has what git looks for in one, which is a `HEAD` next to `objects` and `refs` folders. The VM can point a `sub/.git` file at any folder in the project, such as `src`, and locking that folder's `hooks` and `config` would lock your own files, so devvm locks and creates nothing in a folder that fails the check and reports it instead.
 - `.git/config.worktree`, when `extensions.worktreeConfig` is on. devvm creates it empty if it's missing.
 - What linked worktrees elsewhere on your machine read from here, which is `.git/worktrees/<name>/commondir` and `config.worktree`.
 - The project folder's `.git` file, if the project folder is itself a linked worktree. The repo it points to is outside the VM.
@@ -39,11 +39,26 @@ Every launch of an existing VM, every export of its agents' history, and `devvm 
 - A submodule git folder that appeared, in the working tree or under `.git/modules` (`git_embedded_new`), which devvm then locks. devvm compares with the git folders it recorded last time, so `devvm git-protect on` after a VM was made without protection names none: it locks `.git` as it is then, as trusted.
 - Hooks in a hooks folder that wasn't locked, because it wasn't there to lock or belongs to a new submodule (`git_hooks_unlocked`).
 
-devvm also reports these, the first two on every launch and the last when they change:
+devvm also reports these, the first two on every launch and the last two when they change:
 
 - A `commondir` (`git_commondir`).
 - Linked worktrees whose `commondir` leads elsewhere (`git_worktree_stray`).
 - Includes and hook links into the project folder (`git_include_inside`, `git_hook_link_inside`), which [not covered](../safety/git-protection.md#not-covered) describes.
+- Submodules whose git folder, in the working tree, isn't a git folder (`git_gitdir_not_git`), which devvm doesn't lock.
+
+## On Linux hosts
+
+Linux hosts have no immutable flag that a user can set, so devvm locks nothing there, and every VM that mounts its folder gets `off` as its mode. devvm watches the paths it would lock instead, and names what changed after the fact (`git_changed`), which [Linux hosts](../safety/git-protection.md#when-devvm-names-a-change) tells the user how to check.
+
+devvm hashes the same paths that [what's locked](#whats-locked) lists, found in the same way, and `.git/commondir`, there or not, the files that `include.path` and `includeIf.*.path` lead to in the project folder, and the folder that `core.hooksPath` names in it. For a hooks folder, it hashes each entry below it, except git's `.sample` files, which git never runs, starting with the entries at its top that have a hook's name (githooks(5)), which git runs, and then the rest. It hashes a regular file's contents with SHA-256, opened with `O_NOFOLLOW` and `O_NONBLOCK` and checked to be a regular file once it's open. It records a symlink by where it points, and a path under a symlink, such as `.git/config` when `.git` is a symlink, by that fact. When the link resolves to a file or folder inside the project folder, it adds that file's hash, or a hash of that folder's hashes, and it never follows a link out of the project folder. Anything else, such as a FIFO, is recorded by its type. The work is bounded: past 1,000 entries, a hooks folder is recorded by that count, its inode and its change time, a file larger than 16 MiB by its size, inode and change time, and a watch keeps at most 2,000 hashes. The VM can't set a change time back over 9p, so a change that keeps a large file's size is still named. Each check names, in its own warning (`git_watch_blind`), every path that is a symlink or under one, past a bound, or past the 2,000, because the watch can't see every change there.
+
+The same checks first run what a lock's check reports, without locking (`protect` with `watching`): a `.git` replaced since the last check (`git_replaced`), after which the next check compares with the new one, a `commondir` (`git_commondir`), linked worktrees whose `commondir` leads elsewhere, a repo or submodule git folder that appeared, a submodule's folder that isn't a git folder (`git_gitdir_not_git`), which the watch doesn't hash as one and where devvm creates nothing, and includes, hook links and `core.hooksPath` into the project folder. They don't report hooks in folders that aren't locked, because nothing is, and the watch names their changes. `.git`'s identity and the git folders and delegations found are recorded in the `git` section's `made`, as a lock's check records them. A VM whose `made` isn't set yet reports as a new VM does.
+
+The watch reads `.git` only when the VM is stopped, so it misses a change the VM made and undid before it stopped. It's a report, not a security boundary.
+
+The hashes go in the VM's state, in the `git` section's `watched`, by each path relative to the project folder, with `scanned` set once a check has recorded them. devvm records them when it creates the VM, and checks them again on each launch that finds the VM stopped and on `devvm stop`, the same places that check the locks on macOS. Each check names every path whose hash changed, appeared or went since the last one, in one warning, at most ten of them and then how many more (`git_changed_more`), and then records the new hashes. A launch of a running VM checks nothing. A VM whose state has no `watched` yet, such as one an older devvm made, or one that `devvm adopt` gave this folder, records its first hashes without naming anything.
+
+Each launch also warns that the VM can change `.git` (`git_unprotected`), unless the folder has no `.git` or the VM is a `--clone` VM. The warning stops once the user has chosen the mode, which devvm records as the `git` section's `chosen`: `devvm git-protect off` sets it, and so does `--no-git-protect` when devvm creates the VM.
 
 ## What a lock can't stop
 

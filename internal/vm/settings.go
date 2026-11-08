@@ -76,13 +76,15 @@ func (e Settings) SetGitProtect(ctx context.Context, mode string) error {
 }
 
 // setGitProtect sets a stopped VM's .git protection, and says what it
-// did.
+// did: on a host without locks, off quiets the launches' warning.
 func setGitProtect(ctx context.Context, e *Env, p *gitprotect.Protector, t *target, mode string) error {
 	vm := t.f.Name
 	if err := p.Set(ctx, t.st, mode); err != nil {
 		return err
 	}
 	switch _, err := os.Lstat(filepath.Join(t.f.Dir, ".git")); {
+	case mode == gitprotect.Off && !p.CanLock:
+		e.Info(msg.GitUnprotectedQuiet(vm))
 	case mode == gitprotect.Off:
 		e.Info(msg.GitUnlocked(vm))
 	case err != nil:

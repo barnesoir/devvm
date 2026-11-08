@@ -92,7 +92,7 @@ func (e Lifecycle) Adopt(ctx context.Context, name string, force bool) error {
 		if err != nil {
 			return err
 		}
-		g.Made = gitprotect.Made{}
+		g.Made, g.Watched = gitprotect.Made{}, gitprotect.Watched{}
 		return gitprotect.Set(st, g)
 	})
 	if err != nil {

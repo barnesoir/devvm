@@ -300,7 +300,7 @@ func recordMove(ctx context.Context, st *state.VM, dir, id string, fresh bool) e
 		if err != nil {
 			return err
 		}
-		g.Made = gitprotect.Made{}
+		g.Made, g.Watched = gitprotect.Made{}, gitprotect.Watched{}
 		return gitprotect.Set(st, g)
 	})
 }

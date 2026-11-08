@@ -1,0 +1,79 @@
+# On a host without .git locks (Linux), each launch warns that the VM can
+# change the hooks and config in .git, until devvm git-protect off says
+# the user knows. Each launch that finds the VM stopped, and devvm stop,
+# name what changed of what a lock would cover since the last check: the
+# new VM's first sums are recorded when it's made, and a VM with none
+# recorded (an older devvm's) records its first without naming anything.
+# A --clone VM mounts no .git, so neither applies.
+[!linux] skip 'macOS locks .git: git_protect.txtar'
+env GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+
+# A new VM: warned, its first sums recorded, nothing named.
+project web git
+exec devvm --network open
+vm_name WEB web
+stderr '^devvm: git_unprotected vm=devvm-web-[0-9a-f]{14}$'
+! stderr git_changed
+vm_state $WEB_dir/vm.json
+stdout '^git.watched.scanned=true$'
+stdout '^git.watched.sums..git/config=sha256 [0-9a-f]{64}$'
+! stdout 'git.chosen'
+
+# While it runs, a launch warns again and checks nothing.
+exec git config core.fsmonitor ./evil
+cp $WORK/hook .git/hooks/pre-commit
+exec devvm
+stderr '^devvm: git_unprotected vm=devvm-web-[0-9a-f]{14}$'
+! stderr git_changed
+
+# devvm stop names what changed, once.
+exec devvm stop
+stderr '^devvm: git_changed paths=\.git/config, \.git/hooks/pre-commit vm=devvm-web-[0-9a-f]{14}$'
+! stderr git_unprotected
+exec devvm stop
+! stderr git_changed
+
+# So does a launch that finds it stopped, before it starts.
+exec limactl stop $WEB
+rm .git/hooks/pre-commit
+exec devvm
+stderr '^devvm: git_changed paths=\.git/hooks/pre-commit vm=devvm-web-[0-9a-f]{14}$'
+
+# devvm git-protect off is the user's choice: the warning stops, the watch
+# goes on.
+exec devvm git-protect off
+stdout '^==> git_unprotected_quiet vm=devvm-web-[0-9a-f]{14}$'
+vm_state $WEB_dir/vm.json
+stdout '^git.chosen=true$'
+exec devvm
+! stderr git_unprotected
+exec git config core.sshCommand ./evil
+exec devvm stop
+stderr '^devvm: git_changed paths=\.git/config vm=devvm-web-[0-9a-f]{14}$'
+
+# A VM an older devvm made has no sums: its first check records them and
+# names nothing.
+json_set $WEB_dir/vm.json git.watched:=null
+exec git config core.pager ./evil
+exec devvm stop
+! stderr git_changed
+vm_state $WEB_dir/vm.json
+stdout '^git.watched.scanned=true$'
+
+# --no-git-protect is the user's choice too.
+project quiet git
+exec devvm --no-git-protect --network open
+! stderr git_unprotected
+
+# A --clone VM: neither.
+project cloned
+exec git init -q -b main
+exec git commit -q --allow-empty -m one
+exec devvm --clone --network open
+! stderr git_unprotected
+exec git config core.fsmonitor ./evil
+exec devvm stop
+! stderr git_changed
+
+-- hook --
+#!/bin/sh
