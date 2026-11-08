@@ -99,6 +99,7 @@ set key anthropic
     "type": "api"
   }
 }
+placeholder devvm-proxy-managed-opencode-anthropic-s4lt
 set key deepseek
 {
   "anthropic": {
@@ -153,6 +154,7 @@ set key deepseek
     "type": "api"
   }
 }
+placeholder devvm-proxy-managed-opencode-deepseek-s4lt
 set key google
 {
   "anthropic": {
@@ -207,6 +209,7 @@ set key google
     "type": "api"
   }
 }
+placeholder devvm-proxy-managed-opencode-google-s4lt
 set key groq
 {
   "anthropic": {
@@ -261,6 +264,7 @@ set key groq
     "type": "api"
   }
 }
+placeholder devvm-proxy-managed-opencode-groq-s4lt
 set key mistral
 {
   "anthropic": {
@@ -315,6 +319,7 @@ set key mistral
     "type": "api"
   }
 }
+placeholder devvm-proxy-managed-opencode-mistral-s4lt
 set key openai
 {
   "anthropic": {
@@ -362,6 +367,7 @@ set key openai
     "type": "api"
   }
 }
+placeholder sk-devvm-proxy-managed-opencode-openai-s4lt
 set key openrouter
 {
   "anthropic": {
@@ -412,6 +418,7 @@ set key openrouter
     "type": "api"
   }
 }
+placeholder devvm-proxy-managed-opencode-openrouter-s4lt
 set key xai
 {
   "anthropic": {
@@ -466,3 +473,4 @@ set key xai
     "type": "api"
   }
 }
+placeholder devvm-proxy-managed-opencode-xai-s4lt

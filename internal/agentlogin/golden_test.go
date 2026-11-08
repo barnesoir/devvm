@@ -119,6 +119,14 @@ func TestLoginsGolden(t *testing.T) {
 				saved, err := os.ReadFile(k.Path)
 				must(t, err)
 				out.WriteString("set key " + provider + "\n" + string(saved))
+				k.Salt = f.Salt
+				kb, err := k.Bindings()
+				must(t, err)
+				for _, b := range kb {
+					if b.Name == kind+"-"+provider {
+						out.WriteString("placeholder " + b.Placeholder + "\n")
+					}
+				}
 			}
 			golden(t, kind+".txt", out.Bytes())
 		})

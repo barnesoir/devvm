@@ -771,7 +771,7 @@ func netTokenServer(n *netRun) error {
 	if err != nil {
 		return err
 	}
-	cf, kf, err := ca.Sign("auth", "auth.openai.com", "platform.claude.com", "api.anthropic.com", "api.groq.com")
+	cf, kf, err := ca.Sign("auth", "auth.openai.com", "platform.claude.com", "api.anthropic.com", "api.groq.com", "api.openai.com")
 	if err != nil {
 		return err
 	}
@@ -1095,7 +1095,8 @@ const piKey = "sk-ant-e2efake-pi"
 // the store; the VM's pi gets only its placeholder, and pi's own request
 // to Anthropic's API, which the run's fake answers, carries the key the
 // VM's proxy put in, logged nowhere; a fake Groq key the same, in pi's
-// Authorization to Groq's API.
+// Authorization to Groq's API; and a fake OpenAI key, whose placeholder
+// starts sk- as pi checks, in an API key's request to OpenAI's API.
 func netPi(n *netRun) {
 	s, vm := n.s, n.vm
 	s.Check("pi runs in the VM from its read-only shared image, its version check and install report off", func() error {
@@ -1161,10 +1162,33 @@ func netPi(n *netRun) {
 		}
 		return NoLeak([]string{groqKey}, filepath.Join(n.vmd, "logs"), filepath.Join(s.Paths.Devvm, "logs"))
 	}, Tail(40))
+	s.Check("devvm agent login pi --api-key --provider openai: the VM's pi holds a placeholder starting sk-, and sends OpenAI's API an API key's request with the key", func() error {
+		r, err := n.dv(piOpenAIKey+"\n", n.tokenEnv("DEVVM_MESSAGES=names"), "agent", "login", "pi", "--api-key", "--provider", "openai", "--stdin")
+		if err != nil || !Matches(r.Out, `^==> agent_key_saved agent=pi provider=openai vm=`) {
+			return failed("devvm agent login pi --api-key --provider openai didn't save the key:\n"+r.Out, err)
+		}
+		ph := "sk-devvm-proxy-managed-pi-openai-" + n.salt
+		if vmOut(s, vm, "jq -r .openai.key ~/.pi/agent/auth.json") != ph {
+			return errors.New("the VM's pi login doesn't hold OpenAI's key's placeholder")
+		}
+		// The fake answers with a 404, so pi fails, after its request. A key that doesn't start
+		// with sk- would be a ChatGPT sign-in's token to pi, which leaves max_output_tokens out.
+		_, _ = s.InVM(vm, `timeout 120 pi --no-session --no-tools -p --provider openai --model gpt-4o "e2e" </dev/null`)
+		switch {
+		case !lineWith(readText(n.tokLog), "openai /v1/responses Bearer "+piOpenAIKey+" max_output_tokens"):
+			return errors.New("pi's request didn't reach OpenAI's API as an API key's, with the key the proxy put in\n" + n.tokenWhy())
+		case !lineWith(readText(n.events), `"host":"api.openai.com"`, `"secrets":["pi-openai"]`):
+			return errors.New("no event shows pi's OpenAI key put in")
+		}
+		return NoLeak([]string{piOpenAIKey}, filepath.Join(n.vmd, "logs"), filepath.Join(s.Paths.Devvm, "logs"))
+	}, Tail(40))
 }
 
 // groqKey is the fake Groq API key devvm agent login pi saves.
 const groqKey = "gsk_e2efake-pi-groq"
+
+// piOpenAIKey is the fake OpenAI API key devvm agent login pi saves.
+const piOpenAIKey = "sk-e2efake-pi-openai"
 
 // pi's terminal UI looks for fd (as fd or fdfind) and rg as it starts,
 // and downloads each it doesn't find into ~/.pi/agent/bin, unpinned, from
@@ -2302,8 +2326,8 @@ socketserver.ThreadingTCPServer(("", int(sys.argv[1])), H).serve_forever()
 `
 
 // fakeTokenPy is the fake token endpoints: a company proxy that answers a
-// CONNECT to auth.openai.com, platform.claude.com, api.anthropic.com or
-// api.groq.com itself, with its certificate (port, cert, key and its log
+// CONNECT to auth.openai.com, platform.claude.com, api.anthropic.com,
+// api.groq.com or api.openai.com itself, with its certificate (port, cert, key and its log
 // are its arguments), and refuses any other.
 //
 //nolint:gosec // G101: its tokens are fakes, which no service takes
@@ -2371,7 +2395,14 @@ def groq(path, h):
     with open(log, "a") as o:
         o.write("groq " + path + " " + (a[0] if a else "-") + "\n")
     return 404, {"error": {"message": "e2e", "type": "invalid_request_error"}}
-HOSTS = ("auth.openai.com", "platform.claude.com", "api.anthropic.com", "api.groq.com")
+# OpenAI's API, as Groq's, under "openai", and whether the body asks for max_output_tokens, which pi
+# leaves out for a ChatGPT sign-in's token but sends with an API key.
+def openai(path, h, body):
+    a = [x.split(":", 1)[1].strip() for x in h[1:] if x.lower().startswith("authorization:")]
+    with open(log, "a") as o:
+        o.write("openai " + path + " " + (a[0] if a else "-") + (" max_output_tokens" if '"max_output_tokens"' in body else " -") + "\n")
+    return 404, {"error": {"message": "e2e", "type": "invalid_request_error"}}
+HOSTS = ("auth.openai.com", "platform.claude.com", "api.anthropic.com", "api.groq.com", "api.openai.com")
 def serve(c):
     try:
         req = head(c.makefile("rb"))
@@ -2396,6 +2427,8 @@ def serve(c):
                 code, r = api(h[0].split(" ")[1], h)
             elif host == "api.groq.com":
                 code, r = groq(h[0].split(" ")[1], h)
+            elif host == "api.openai.com":
+                code, r = openai(h[0].split(" ")[1], h, body)
             elif host == "platform.claude.com":
                 q = json.loads(body) if body.startswith("{") else {}
                 with open(log, "a") as o:

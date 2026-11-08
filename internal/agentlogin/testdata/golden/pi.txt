@@ -126,6 +126,7 @@ set key anthropic
     "type": "api_key"
   }
 }
+placeholder devvm-proxy-managed-pi-anthropic-s4lt
 set key deepseek
 {
   "amazon-bedrock": {
@@ -208,6 +209,7 @@ set key deepseek
     "type": "api_key"
   }
 }
+placeholder devvm-proxy-managed-pi-deepseek-s4lt
 set key google
 {
   "amazon-bedrock": {
@@ -286,6 +288,7 @@ set key google
     "type": "api_key"
   }
 }
+placeholder devvm-proxy-managed-pi-google-s4lt
 set key groq
 {
   "amazon-bedrock": {
@@ -364,6 +367,7 @@ set key groq
     "type": "api_key"
   }
 }
+placeholder devvm-proxy-managed-pi-groq-s4lt
 set key mistral
 {
   "amazon-bedrock": {
@@ -446,6 +450,7 @@ set key mistral
     "type": "api_key"
   }
 }
+placeholder devvm-proxy-managed-pi-mistral-s4lt
 set key openai
 {
   "amazon-bedrock": {
@@ -524,6 +529,7 @@ set key openai
     "type": "api_key"
   }
 }
+placeholder sk-devvm-proxy-managed-pi-openai-s4lt
 set key openrouter
 {
   "amazon-bedrock": {
@@ -602,6 +608,7 @@ set key openrouter
     "type": "api_key"
   }
 }
+placeholder devvm-proxy-managed-pi-openrouter-s4lt
 set key xai
 {
   "amazon-bedrock": {
@@ -684,3 +691,4 @@ set key xai
     "type": "api_key"
   }
 }
+placeholder devvm-proxy-managed-pi-xai-s4lt

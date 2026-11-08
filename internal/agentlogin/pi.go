@@ -26,11 +26,6 @@ import (
 	"github.com/devvmhq/devvm/internal/proxy"
 )
 
-// piPlaceholder is the VM's in place of a provider's API key in pi's auth.json.
-func piPlaceholder(provider, salt string) string {
-	return salted("devvm-proxy-managed-pi-"+provider, salt)
-}
-
 // piTemplate matches a pi key's $NAME or ${NAME}, once its literal $$ are taken out.
 var piTemplate = regexp.MustCompile(`\$\{?[A-Za-z_]`)
 
@@ -50,7 +45,7 @@ func piBindings(m map[string]any, salt string) []proxy.Binding {
 	for _, id := range sortedKeys(m) {
 		if _, ok := piKey(m, id); ok {
 			p, _ := keyProvider(id)
-			bs = append(bs, login(agents.Pi, "pi-"+id, p.hosts, p.header, piPlaceholder(id, salt)))
+			bs = append(bs, login(agents.Pi, "pi-"+id, p.hosts, p.header, keyPlaceholder(agents.Pi, id, salt)))
 		}
 	}
 	return bs

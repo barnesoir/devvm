@@ -121,8 +121,8 @@ func TestOpencodeImport(t *testing.T) {
 // Each provider's API key, saved as devvm agent login --api-key --provider
 // saves it for opencode and for pi, is bound for that provider's hosts and
 // header alone, as checked against both agents' source, under the agent's
-// placeholder, which the VM's copy holds in the key's place; Get gives the
-// key back.
+// placeholder, which starts as the agent checks the provider's keys start
+// and which the VM's copy holds in the key's place; Get gives the key back.
 func TestProviderKeys(t *testing.T) {
 	want := map[string][2]string{
 		"anthropic": {"api.anthropic.com", "x-api-key"}, "deepseek": {"api.deepseek.com", "Authorization"},
@@ -130,6 +130,8 @@ func TestProviderKeys(t *testing.T) {
 		"mistral": {"api.mistral.ai", "Authorization"}, "openai": {"api.openai.com", "Authorization"},
 		"openrouter": {"openrouter.ai", "Authorization"}, "xai": {"api.x.ai", "Authorization"},
 	}
+	// pi takes an OpenAI key that doesn't start with sk- for a ChatGPT sign-in's token.
+	prefix := map[string]string{"openai": "sk-"}
 	for _, kind := range []string{Opencode, Pi} {
 		if got := KeyProviders(kind); len(got) != len(want) {
 			t.Errorf("KeyProviders(%s) = %v", kind, got)
@@ -140,7 +142,7 @@ func TestProviderKeys(t *testing.T) {
 			key := id + "-e2efake-key"
 			must(t, f.SetKey(id, key))
 			f.Salt = "s1"
-			ph := "devvm-proxy-managed-" + kind + "-" + id + "-s1"
+			ph := prefix[id] + "devvm-proxy-managed-" + kind + "-" + id + "-s1"
 			bs := bindings(t, f)
 			if len(bs) != 1 || bs[0].Name != kind+"-"+id || !slices.Equal(bs[0].Hosts, []string{want[id][0]}) ||
 				bs[0].Header != want[id][1] || bs[0].Placeholder != ph {

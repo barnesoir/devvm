@@ -242,7 +242,7 @@ The VM's proxy puts in opencode's and pi's API keys for the providers in this ta
 | `openrouter` | OpenRouter | `openrouter.ai` | `Authorization` |
 | `xai` | xAI | `api.x.ai` | `Authorization` |
 
-The Google Gemini key is the Gemini API's, for Google AI Studio. Vertex AI logs in with a Google Cloud account or a service account instead, so devvm withholds its logins, as it does any other provider's. These providers' keys never need `[pass-keys]`, and when it lists one of them all the same, the VM still gets the key's placeholder, never the key, and devvm notes at each launch that you can take the provider out.
+The placeholder for an OpenAI key starts with `sk-`, as an OpenAI API key does, because pi takes an OpenAI key that starts any other way for a Sign in with ChatGPT login and then leaves settings such as the longest reply it wants out of its requests. The Google Gemini key is the Gemini API's, for Google AI Studio. Vertex AI logs in with a Google Cloud account or a service account instead, so devvm withholds its logins, as it does any other provider's. These providers' keys never need `[pass-keys]`, and when it lists one of them all the same, the VM still gets the key's placeholder, never the key, and devvm notes at each launch that you can take the provider out.
 
 ## History
 

@@ -166,18 +166,27 @@ func splitUnbound(m map[string]any, pass []string, bound, passed func(id string)
 type provider struct {
 	hosts  []string
 	header string
+	prefix string // what the VM's placeholder starts with (agents.Provider's Prefix)
 }
 
 // keyProvider is where the API key of the provider whose ID is id goes, false for a provider not
 // in agents.Providers.
 func keyProvider(id string) (provider, bool) {
 	p, ok := agents.ProviderOf(id)
-	return provider{p.Hosts, p.Header}, ok
+	return provider{p.Hosts, p.Header, p.Prefix}, ok
+}
+
+// keyPlaceholder is the VM's in place of the API key or token of agent's login for the provider
+// whose ID is id, in opencode's or pi's file: the provider's prefix, which the agent may check
+// the key for, then devvm-proxy-managed, the agent and the provider.
+func keyPlaceholder(agent, id, salt string) string {
+	p, _ := keyProvider(id)
+	return salted(p.prefix+"devvm-proxy-managed-"+agent+"-"+id, salt)
 }
 
 var opencodeOAuth = map[string]provider{
-	"openai":         {[]string{"chatgpt.com"}, "Authorization"},
-	"github-copilot": {[]string{"api.githubcopilot.com"}, "Authorization"},
+	"openai":         {hosts: []string{"chatgpt.com"}, header: "Authorization"},
+	"github-copilot": {hosts: []string{"api.githubcopilot.com"}, header: "Authorization"},
 }
 
 // fileMax is the most of an agent's file read: ~/.claude.json keeps every project's history, so it
@@ -402,12 +411,6 @@ func (f File) codexGet(ctx context.Context, name string) (string, error) {
 
 // --- opencode ---
 
-// opencodePlaceholder is the VM's in place of a provider's API key or token, but OpenAI's OAuth
-// login's (openaiPlaceholder).
-func opencodePlaceholder(provider, salt string) string {
-	return salted("devvm-proxy-managed-opencode-"+provider, salt)
-}
-
 func opencodeBindings(m map[string]any, salt string) []proxy.Binding {
 	var bs []proxy.Binding
 	for id := range m {
@@ -424,7 +427,7 @@ func opencodeBindings(m map[string]any, salt string) []proxy.Binding {
 		if !ok {
 			continue
 		}
-		ph := opencodePlaceholder(id, salt)
+		ph := keyPlaceholder(agents.Opencode, id, salt)
 		if id == "openai" && str(e, "type") == "oauth" {
 			ph = openaiPlaceholder(str(e, "access"), salt) // opencode reads the account from it
 		}

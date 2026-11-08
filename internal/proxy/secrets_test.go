@@ -641,6 +641,53 @@ func TestIntercept(t *testing.T) {
 	}
 }
 
+// A WebSocket's upgrade in an intercepted tunnel, as opencode opens OpenAI's and xAI's Responses
+// API (wss://…/v1/responses), gets the secret put in its header as any request does, and once the
+// upstream switches protocols, the proxy carries the connection's bytes both ways.
+func TestInterceptWebSocket(t *testing.T) {
+	t.Parallel()
+	_, port, _, client := interceptSetup(t, func(w http.ResponseWriter, r *http.Request) {
+		if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			http.Error(w, "no upgrade", http.StatusBadRequest)
+			return
+		}
+		conn, rw, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		fmt.Fprintf(rw, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nX-Auth: %s\r\n\r\n", r.Header.Get("Authorization"))
+		_ = rw.Flush()
+		b := make([]byte, 4)
+		if _, err := io.ReadFull(rw, b); err == nil {
+			_, _ = conn.Write(b)
+		}
+	})
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("https://localhost:%d/v1/responses", port), nil)
+	req.Header.Set("Authorization", "Bearer PH")
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSwitchingProtocols || resp.Header.Get("X-Auth") != "Bearer real" {
+		t.Fatalf("the upgrade: %d, the upstream saw %q", resp.StatusCode, resp.Header.Get("X-Auth"))
+	}
+	conn, ok := resp.Body.(io.ReadWriteCloser)
+	if !ok {
+		t.Fatal("the switched connection can't be written to")
+	}
+	if _, err := conn.Write([]byte("ping")); err != nil {
+		t.Fatal(err)
+	}
+	b := make([]byte, 4)
+	if _, err := io.ReadFull(conn, b); err != nil || string(b) != "ping" {
+		t.Errorf("the switched connection gave %q, %v", b, err)
+	}
+}
+
 // Every HTTPS request the proxy forwards, in an intercepted tunnel or in absolute form
 // (handleHTTP), is refused before it goes anywhere when it would make a lasting GitHub
 // credential, logged as a refused block; plain HTTP carries no secret.
