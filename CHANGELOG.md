@@ -6,6 +6,10 @@
 
 - **Cursor Agent:** a pinned Agent CLI shared tool, `devvm agent login cursor` for browser login with host-side tokens and guest placeholders (like Claude), and `devvm cursor` to open this folder's VM in Cursor over Remote-SSH the same way `devvm code` opens VS Code ([coding agents](https://devvm.dev/docs/using/coding-agents/#cursor-agent-login), [Cursor](https://devvm.dev/docs/using/ssh/#cursor)).
 
+### Fixed
+
+- **Cursor Agent login:** captured requests keep their query string, so `GET api2.cursor.sh/auth/poll?uuid=&verifier=` reaches Cursor instead of a bare `/auth/poll` that fails at once ([coding agents](https://devvm.dev/docs/using/coding-agents/#cursor-agent-login)).
+
 ## 0.1.1-rc.2
 
 A release candidate for 0.1.1, adding to 0.1.1-rc.1. Install it with `devvm upgrade --to 0.1.1-rc.2`, the install script's `--version 0.1.1-rc.2`, or `brew install devvmhq/tap/devvm-rc`. Homebrew's `devvm` stays on 0.1.0.

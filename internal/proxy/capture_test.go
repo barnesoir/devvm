@@ -201,9 +201,20 @@ func TestCapturePaths(t *testing.T) {
 			t.Errorf("POST %s: %d %q", p, code, body)
 		}
 	}
-	// Each went to the endpoint's own path, without a query.
-	if got := te.requests(); len(got) != len(spellings) || slices.ContainsFunc(got, func(r string) bool { return !strings.HasPrefix(r, "POST /oauth/token grant_type") }) {
+	// Each went to the endpoint's own path; a query on the VM's spelling is kept (?q=1).
+	if got := te.requests(); len(got) != len(spellings) {
 		t.Errorf("the endpoint got %q", got)
+	} else {
+		want := []string{
+			"POST /oauth/token grant_type=refresh_token gzip",
+			"POST /oauth/token?q=1 grant_type=refresh_token gzip",
+			"POST /oauth/token grant_type=refresh_token gzip",
+			"POST /oauth/token grant_type=refresh_token gzip",
+			"POST /oauth/token grant_type=refresh_token gzip",
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("the endpoint got %q, want %q", got, want)
+		}
 	}
 	for _, r := range [][2]string{
 		{http.MethodGet, "/oauth/token"},
@@ -224,6 +235,31 @@ func TestCapturePaths(t *testing.T) {
 	if n, _ := fc.counts(); n != len(spellings) {
 		t.Errorf("IO.Capture got %d requests, want %d", n, len(spellings))
 	}
+}
+
+// A GET capture keeps the query string: Cursor Agent's /auth/poll?uuid=&verifier= needs it, or
+// every poll fails and the CLI gives up after three tries.
+func TestCaptureGETKeepsQuery(t *testing.T) {
+	t.Parallel()
+	te := &tokenEndpoint{}
+	s, port, file, c := interceptSetup(t, te.serve)
+	writeBindings(t, file)
+	fc := &fakeCapturer{}
+	s.captures = newCaptures([]Capture{
+		{Agent: "cursor", Host: "localhost", Path: "/auth/poll", Method: http.MethodGet},
+	}, fc)
+	u := fmt.Sprintf("https://localhost:%d/Auth//poll?uuid=u1&verifier=v1", port)
+	code, body := post(t, c, http.MethodGet, u, "")
+	if code != http.StatusOK || body != `{"access_token":"VM-PH"}` {
+		t.Fatalf("the VM got %d %q", code, body)
+	}
+	if got := te.requests(); len(got) != 1 || got[0] != "GET /auth/poll?uuid=u1&verifier=v1  gzip" {
+		t.Errorf("the endpoint got %q", got)
+	}
+	if n, _ := fc.counts(); n != 1 {
+		t.Errorf("IO.Capture got %d requests, want 1", n)
+	}
+	_ = s
 }
 
 // A token endpoint's informational replies never reach the VM, as their headers could hold a

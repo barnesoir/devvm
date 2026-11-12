@@ -891,9 +891,11 @@ func (s *server) forwarder(scheme, target, host string, port int) (fwd http.Hand
 				pr.Out.Header.Del("Accept-Encoding")
 			}
 			// A captured request goes to the endpoint's own path, never the VM's spelling of it,
-			// which another handler there could read apart.
+			// which another handler there could read apart. Keep the query: Cursor Agent's
+			// browser login polls GET /auth/poll?uuid=&verifier=, and stripping it makes every
+			// poll a 400 so the CLI gives up after three tries.
 			if c := captured(pr.In.Context()); c != nil {
-				pr.Out.URL.Path, pr.Out.URL.RawPath, pr.Out.URL.RawQuery = c.path, "", ""
+				pr.Out.URL.Path, pr.Out.URL.RawPath = c.path, ""
 			}
 			// Secrets only ever go over TLS, to :443, each for the method and the path that go out.
 			if scheme == "https" && s.interceptPorts[port] {
