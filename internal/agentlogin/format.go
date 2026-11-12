@@ -107,7 +107,8 @@ func (k keep) apply(m map[string]any) (map[string]any, []string) {
 func formats() map[string]format {
 	return map[string]format{
 		agents.Claude: claudeFormat{}, agents.ClaudeOAuth: claudeOAuthFormat{},
-		agents.Codex: codexFormat{}, agents.Opencode: opencodeFormat{}, agents.Pi: piFormat{},
+		agents.Codex: codexFormat{}, agents.Cursor: cursorFormat{},
+		agents.Opencode: opencodeFormat{}, agents.Pi: piFormat{},
 	}
 }
 
@@ -124,11 +125,24 @@ func (f File) errKind() error { return fmt.Errorf("unknown login kind %q", f.Kin
 
 type (
 	codexFormat       struct{}
+	cursorFormat      struct{}
 	opencodeFormat    struct{}
 	piFormat          struct{}
 	claudeFormat      struct{}
 	claudeOAuthFormat struct{}
 )
+
+func (cursorFormat) bindings(m map[string]any, salt string) []proxy.Binding {
+	return cursorBindings(m, salt)
+}
+
+func (cursorFormat) vmCopy(m map[string]any, f File) (map[string]any, VMFile) {
+	return cursorVM(m, f.Salt), VMFile{}
+}
+
+func (cursorFormat) get(ctx context.Context, f File, name string) (string, error) {
+	return f.cursorGet(ctx, name)
+}
 
 func (codexFormat) bindings(m map[string]any, salt string) []proxy.Binding {
 	return codexBindings(m, salt)

@@ -194,6 +194,16 @@ func AgentLoginClaudePaste() M {
 	return M{id: "agent_login_claude_paste"}
 }
 
+// AgentLoginCursorFlag is [agent_login_cursor_flag]: "{{.flag}} doesn't go with devvm agent login cursor, which logs in in a browser on any machine. Run devvm agent login cursor."
+func AgentLoginCursorFlag(flag string) M {
+	return M{id: "agent_login_cursor_flag", vals: []val{{"flag", flag}}}
+}
+
+// AgentLoginCursorPaste is [agent_login_cursor_paste]: "Open the Cursor login URL agent prints in a browser on any machine and approve the login. The VM's proxy saves the login; nothing is forwarded."
+func AgentLoginCursorPaste() M {
+	return M{id: "agent_login_cursor_paste"}
+}
+
 // AgentLoginExited is [agent_login_exited]: "{{.agent}}'s login in {{.vm}} failed, and its output above says why."
 func AgentLoginExited(agent string, vm string) M {
 	return M{id: "agent_login_exited", vals: []val{{"agent", agent}, {"vm", vm}}}
@@ -922,6 +932,16 @@ func CreatingFromUbuntu(vm string) M {
 // CursorFailed is [cursor_failed]: "Opening this folder's VM in Cursor failed: {{.reason}}."
 func CursorFailed(reason string) M {
 	return M{id: "cursor_failed", vals: []val{{"reason", reason}}}
+}
+
+// CursorLoginSaved is [cursor_login_saved]: "devvm saved Cursor Agent's login in its agent store, and {{.vm}} uses it now. Every VM with Cursor Agent gets it from its next launch."
+func CursorLoginSaved(vm string) M {
+	return M{id: "cursor_login_saved", vals: []val{{"vm", vm}}}
+}
+
+// CursorRefreshFailed is [cursor_refresh_failed]: "Refreshing the Cursor Agent login in devvm's agent store failed: {{.reason}}. Run devvm agent login cursor in a VM's folder to log in again."
+func CursorRefreshFailed(reason string) M {
+	return M{id: "cursor_refresh_failed", vals: []val{{"reason", reason}}}
 }
 
 // CustomLayerRemove is [custom_layer_remove]: "{{.layer}} is one of {{.vm}}'s layers, not a shared tool. To take it out, run devvm layer rm {{.layer}}."
@@ -4889,6 +4909,8 @@ var specs = map[string]spec{
 	"agent_load_failed":              {fields: []string{"key"}},
 	"agent_login_claude_flag":        {fields: []string{"flag"}},
 	"agent_login_claude_paste":       {},
+	"agent_login_cursor_flag":        {fields: []string{"flag"}},
+	"agent_login_cursor_paste":       {},
 	"agent_login_exited":             {fields: []string{"agent", "vm"}},
 	"agent_login_failed":             {fields: []string{"reason"}},
 	"agent_login_forward":            {fields: []string{"agent", "port", "vm"}},
@@ -5035,6 +5057,8 @@ var specs = map[string]spec{
 	"creating_from":                  {fields: []string{"image", "vm"}},
 	"creating_from_ubuntu":           {fields: []string{"vm"}},
 	"cursor_failed":                  {fields: []string{"reason"}},
+	"cursor_login_saved":             {fields: []string{"vm"}},
+	"cursor_refresh_failed":          {fields: []string{"reason"}},
 	"custom_layer_remove":            {fields: []string{"layer", "vm"}},
 	"custom_secret_howto":            {fields: []string{"hosts", "secret"}},
 	"custom_secret_refused":          {fields: []string{"path", "secret"}},

@@ -2837,8 +2837,22 @@ other = "devvm saved {{.agent}}'s ChatGPT login for {{.email}} in its agent stor
 [agent_login_claude_paste]
 other = "Open the address Claude Code shows in a browser on any machine and approve the login, then paste the code the browser shows here."
 
+[agent_login_cursor_paste]
+other = "Open the Cursor login URL agent prints in a browser on any machine and approve the login. The VM's proxy saves the login; nothing is forwarded."
+
+[agent_login_cursor_flag]
+description = "flag is the flag given, as typed: --device-code, --api-key or --stdin"
+other = "{{.flag}} doesn't go with devvm agent login cursor, which logs in in a browser on any machine. Run devvm agent login cursor."
+
 [claude_login_saved]
 other = "devvm saved Claude Code's login in its agent store, and {{.vm}} uses it now. Every VM with Claude Code gets it from its next launch."
+
+[cursor_login_saved]
+other = "devvm saved Cursor Agent's login in its agent store, and {{.vm}} uses it now. Every VM with Cursor Agent gets it from its next launch."
+
+[cursor_refresh_failed]
+description = "reason is an error from the system or Cursor's token lifetime, in English"
+other = "Refreshing the Cursor Agent login in devvm's agent store failed: {{.reason}}. Run devvm agent login cursor in a VM's folder to log in again."
 
 [claude_setup_token_saved]
 other = "devvm saved the Claude Code token from claude setup-token with its secrets, and {{.vm}} uses it now. Every VM with Claude Code gets it from its next launch."

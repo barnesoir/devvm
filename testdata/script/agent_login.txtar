@@ -9,7 +9,7 @@
 ! exec devvm agent login
 stderr '^devvm: arg_missing args=AGENT command=devvm agent login$'
 ! exec devvm agent login aider
-stderr '^devvm: arg_not_choice choices=claude, codex, opencode, pi(, [a-z0-9-]+)* command=devvm agent login given=aider$'
+stderr '^devvm: arg_not_choice choices=claude, codex, cursor, opencode, pi(, [a-z0-9-]+)* command=devvm agent login given=aider$'
 ! exec devvm agent login codex --setup-token
 stderr '^devvm: agent_login_setup_token_alone$'
 ! exec devvm agent login claude --device-code
@@ -18,6 +18,12 @@ stderr '^devvm: agent_login_claude_flag flag=--device-code$'
 stderr '^devvm: agent_login_claude_flag flag=--api-key$'
 ! exec devvm agent login claude --stdin
 stderr '^devvm: agent_login_claude_flag flag=--stdin$'
+! exec devvm agent login cursor --device-code
+stderr '^devvm: agent_login_cursor_flag flag=--device-code$'
+! exec devvm agent login cursor --api-key
+stderr '^devvm: agent_login_cursor_flag flag=--api-key$'
+! exec devvm agent login cursor --stdin
+stderr '^devvm: agent_login_cursor_flag flag=--stdin$'
 ! exec devvm agent login codex --stdin
 stderr '^devvm: agent_login_stdin_alone agent=codex$'
 ! exec devvm agent login codex --api-key --provider anthropic
@@ -302,12 +308,44 @@ stdout '^==> claude_setup_token_saved'
 stderr 'claude_env_token_wins'
 env CLAUDE_CODE_OAUTH_TOKEN=
 
+# Cursor Agent: browser login runs in the VM with NO_OPEN_BROWSER, nothing
+# forwarded; the stub saves nothing, so devvm says so.
+project cursor
+exec devvm --network open --no-git-protect --agents cursor
+vm_name CU cursor
+stub_reset
+! exec devvm agent login cursor
+stdout '^==> agent_login_cursor_paste$'
+! stdout agent_login_forward
+stderr '^devvm: agent_login_not_saved agent=cursor vm=devvm-cursor-[0-9a-f]{14}$'
+stub_calls
+stdout '''devvm'' ''env'' ''NO_OPEN_BROWSER=1'' ''agent'' ''login''$'
+! stdout ssh
+
+# A login the VM's proxy saves while it runs: the VM is set up again, and
+# gets auth.json with placeholders only.
+exec sh -c 'printf NO_OPEN_BROWSER > "$STUB_DIR/shell-waits-on"'
+rm $STUB_DIR/waiting
+exec devvm agent login cursor &u&
+wait_file $STUB_DIR/waiting
+mkdir -p $DATA/logins/cursor/.config/cursor-agent
+cp $WORK/cursor-auth.json $DATA/logins/cursor/.config/cursor-agent/auth.json
+rm $STUB_DIR/shell-waits-on
+wait u
+stdout '^==> cursor_login_saved vm=devvm-cursor-[0-9a-f]{14}$'
+exec tar -xOf $STUB_DIR/sync.tar home/.config/cursor-agent/auth.json
+stdout '"accessToken": "devvm-proxy-managed-cursor-[0-9a-f]{32}"'
+stdout '"refreshToken": "devvm-proxy-managed"'
+! stdout testfake
+
 -- claude.token --
 sk-ant-oat01-testfake-setup
 -- claude2.token --
 sk-ant-oat01-testfake-setup2
 -- credentials.json --
 {"claudeAiOauth": {"accessToken": "sk-ant-oat01-testfake", "refreshToken": "sk-ant-ort01-testfake", "expiresAt": 4070908800000, "scopes": ["user:inference"]}}
+-- cursor-auth.json --
+{"accessToken": "eyJhbGciOiJIUzI1NiJ9.e30.cursor-testfake", "refreshToken": "rt-cursor-testfake"}
 
 -- key --
 sk-testfake-codex

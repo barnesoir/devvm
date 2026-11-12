@@ -20,6 +20,7 @@ import (
 const (
 	Claude   = "claude"
 	Codex    = "codex"
+	Cursor   = "cursor"
 	Opencode = "opencode"
 	Pi       = "pi"
 )
@@ -41,6 +42,10 @@ const (
 	// PiSettings is pi's settings.json, whose VM copy leaves out what undoes devvm's settings
 	// (agentlogin.PiSettings).
 	PiSettings = PiFolder + "/settings.json"
+	// CursorConfig is Cursor Agent CLI's config folder on Linux (XDG), which holds auth.json.
+	CursorConfig = ".config/cursor-agent"
+	// CursorAuth is Cursor Agent CLI's login file under CursorConfig.
+	CursorAuth = CursorConfig + "/auth.json"
 )
 
 // Format is how a VM's copy of a settings file is made.
@@ -230,6 +235,15 @@ var Defs = []Def{
 		History:         []string{".codex"},
 		HistoryExcludes: []string{".codex/auth.json"},
 		ChatGPT:         true, Keys: OneKey,
+	},
+	{
+		Name: Cursor, Display: "Cursor Agent", Folder: CursorConfig,
+		Logins:          []Login{{Cursor, CursorAuth}},
+		History:         []string{CursorConfig},
+		HistoryExcludes: []string{CursorAuth},
+		// Cursor Agent CLI has no documented self-update env; telemetry hosts stay off the allowlist.
+		OwnLogin:  true,
+		GlibcOnly: true, // linux-* packages ship glibc Node addons (*.linux-*-gnu.node)
 	},
 	{
 		Name: Opencode, Display: "opencode", Folder: OpencodeConfig, WholeFolder: true,

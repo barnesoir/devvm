@@ -82,6 +82,9 @@ func (e AgentLogin) Run(ctx context.Context, o AgentLoginOptions) error {
 	if o.Agent == agents.Claude {
 		return e.claude(ctx, t, conf, o)
 	}
+	if o.Agent == agents.Cursor {
+		return e.cursor(ctx, t, conf, o)
+	}
 	if o.Key != "" {
 		return e.saveKey(ctx, t, store, o)
 	}
@@ -145,6 +148,28 @@ func (e AgentLogin) claude(ctx context.Context, t *target, conf backend.Confinem
 	if secrets.ClaudeOf(store).Env() != "" {
 		e.Warn(msg.ClaudeEnvTokenWins())
 	}
+	return nil
+}
+
+// cursor logs Cursor Agent in in the VM: agent login opens a browser URL
+// (or prints it when NO_OPEN_BROWSER is set), polls api2.cursor.sh/auth/poll
+// through the VM's proxy, which saves the login in the store and returns
+// placeholders. No port is forwarded. Then the VM is set up again so it
+// gets the store's login file.
+func (e AgentLogin) cursor(ctx context.Context, t *target, conf backend.Confinement, o AgentLoginOptions) error {
+	vm, store := t.f.Name, e.Proxy.Secrets
+	before := store.LoginSum(agents.Cursor)
+	e.Info(msg.AgentLoginCursorPaste())
+	if err := e.login(ctx, t, o); err != nil {
+		return err
+	}
+	if store.LoginSum(agents.Cursor) == "" || store.LoginSum(agents.Cursor) == before {
+		return msg.AgentLoginNotSaved(o.Agent, vm)
+	}
+	if err := e.launcher.syncer.sync(ctx, t.b, t.st, t.f.Slug(), tools.Files(t.st), conf); err != nil {
+		return err
+	}
+	e.Info(msg.CursorLoginSaved(vm))
 	return nil
 }
 
@@ -224,6 +249,10 @@ func loginArgv(o AgentLoginOptions) []string {
 			return append(argv, "setup-token")
 		}
 		return append(argv, "auth", "login", "--claudeai")
+	}
+	if o.Agent == agents.Cursor {
+		// Prefer the `agent` symlink sync.sh creates; fall back is cursor-agent in PATH.
+		return []string{"env", "NO_OPEN_BROWSER=1", "agent", "login"}
 	}
 	if o.Agent == agents.Codex {
 		argv := []string{agents.Codex, "-c", `cli_auth_credentials_store="file"`, "login"}

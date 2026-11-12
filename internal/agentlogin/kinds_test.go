@@ -15,6 +15,7 @@ import (
 // The login kinds, as the tests name them.
 const (
 	Codex       = agents.Codex
+	Cursor      = agents.Cursor
 	Opencode    = agents.Opencode
 	Claude      = agents.Claude
 	Pi          = agents.Pi

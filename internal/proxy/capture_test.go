@@ -123,7 +123,10 @@ func captureSetup(t *testing.T) (*server, int, *fakeCapturer, *tokenEndpoint, *h
 	s, port, file, c := interceptSetup(t, te.serve)
 	writeBindings(t, file)
 	fc := &fakeCapturer{}
-	s.captures = newCaptures([]Capture{{"codex", "localhost", "/oauth/token"}, {"opencode", "localhost", "/oauth/token"}}, fc)
+	s.captures = newCaptures([]Capture{
+		{Agent: "codex", Host: "localhost", Path: "/oauth/token"},
+		{Agent: "opencode", Host: "localhost", Path: "/oauth/token"},
+	}, fc)
 	return s, port, fc, te, c, logs(s)
 }
 

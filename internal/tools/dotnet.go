@@ -105,7 +105,7 @@ func (t Versions) withSDKDownloads(ctx context.Context, lock Lock) (Lock, error)
 	channels := map[string][]dotnetSDK{}
 	for _, d := range image.SharedTools {
 		for _, tool := range d.Members {
-			if !image.OwnDownload(tool) {
+			if d.Installer != image.DotnetSDK || !slices.Contains(d.Members, tool) {
 				continue
 			}
 			es := slices.Clone(lock.entries(tool))

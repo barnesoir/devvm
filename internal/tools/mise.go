@@ -245,6 +245,10 @@ func (t Versions) Resolve(ctx context.Context, out string) (Lock, error) {
 		_, _ = fmt.Fprintln(t.LogWriter(), err)
 		return Lock{}, t.resolveFailed(ctx, tmp)
 	}
+	if lock, err = t.withCursorDownloads(ctx, lock); err != nil {
+		_, _ = fmt.Fprintln(t.LogWriter(), err)
+		return Lock{}, t.resolveFailed(ctx, tmp)
+	}
 	names, specs := configTools(config)
 	for _, n := range names {
 		if !lock.Has(n) {
@@ -391,6 +395,9 @@ func (t Versions) lockVersions(ctx context.Context, mise, tool, backendName stri
 	l, err := parseLockFile(filepath.Join(dir, "mise.lock"))
 	if err == nil {
 		l, err = t.withSDKDownloads(ctx, l)
+	}
+	if err == nil {
+		l, err = t.withCursorDownloads(ctx, l)
 	}
 	return l, err == nil
 }

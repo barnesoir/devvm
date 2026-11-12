@@ -29,14 +29,14 @@ func newAgentLoginCmd(a *app) *cobra.Command {
 		}.annotations(),
 		Short: "Log an agent in, in this folder's VM, and save the login in devvm's store",
 		Long: "Log AGENT in inside this folder's VM, and keep the login in devvm's store for every VM with the agent, which gets only placeholders. " +
-			"claude logs in to your Claude subscription in a browser on any machine, whose code you paste back, " +
-			"or gets a long-lived Claude Code token with --setup-token. " +
+			"claude and cursor log in in a browser on any machine (Claude Code may use --setup-token instead); " +
 			andList(agents.Select(func(d agents.Def) bool { return d.ChatGPT })) +
-			" log in to ChatGPT in a browser on this machine, or with a code with --device-code, " +
+			" log in to ChatGPT in a browser on this machine or with --device-code, " +
 			"or save an API key with --api-key, which is " + andList(possessive(agents.Select(agents.Def.KeysOnly))) + " only login.",
 		Example: examples(
 			"devvm agent login claude", "log Claude Code in to your Claude subscription",
 			"devvm agent login claude --setup-token", "get a Claude Code token with claude setup-token instead",
+			"devvm agent login cursor", "log Cursor Agent in with its browser login",
 			"devvm agent login codex", "log Codex in to ChatGPT in a browser on this machine",
 			"devvm agent login codex --device-code", "log in with a code, in a browser on any machine",
 			"devvm agent login opencode --api-key --provider anthropic", "save opencode's Anthropic API key, asking for it",
@@ -88,6 +88,12 @@ func (o agentLoginOpts) check(agent string) error {
 		return msg.AgentLoginClaudeFlag("--api-key")
 	case agent == agents.Claude && o.stdin:
 		return msg.AgentLoginClaudeFlag("--stdin")
+	case agent == agents.Cursor && o.device:
+		return msg.AgentLoginCursorFlag("--device-code")
+	case agent == agents.Cursor && o.apiKey:
+		return msg.AgentLoginCursorFlag("--api-key")
+	case agent == agents.Cursor && o.stdin:
+		return msg.AgentLoginCursorFlag("--stdin")
 	case d.KeysOnly() && !o.apiKey:
 		return msg.AgentLoginKeyOnly(agent)
 	case o.stdin && !o.apiKey:

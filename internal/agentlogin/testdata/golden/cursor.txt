@@ -1,0 +1,13 @@
+binding {"name":"cursor","kind":"login","agent":"cursor","hosts":["api2.cursor.sh","api2direct.cursor.sh","api3.cursor.sh"],"header":"Authorization","placeholder":"devvm-proxy-managed-cursor-s4lt"}
+kept 
+withheld 
+unknown 
+passed but bound 
+providers 
+chatgpt  no
+vm copy
+{
+  "accessToken": "devvm-proxy-managed-cursor-s4lt",
+  "refreshToken": "devvm-proxy-managed"
+}
+set key : no API key devvm puts in for that provider

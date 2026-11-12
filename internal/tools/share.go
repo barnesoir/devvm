@@ -251,12 +251,18 @@ func (t Share) buildOne(ctx context.Context, b backend.Backend, base string, tg 
 	args := []string{tool, version, file}
 	if image.OwnDownload(tool) {
 		// build.sh fetches it itself, from the lock's download for this
-		// VM's platform, checked against the lock's checksum.
+		// VM's platform, checked against the lock's checksum (sha512 for
+		// dotnet, sha256 for cursor).
 		url, sum := lock.Download(tool, t.platform(tg.Libc))
-		if !strings.HasPrefix(url, "https://") || !strings.HasPrefix(sum, "sha512:") {
+		algo, hex, ok := strings.Cut(sum, ":")
+		want := "sha512"
+		if d, found := image.Def(tool); found && d.Installer == image.CursorAgent {
+			want = "sha256"
+		}
+		if !strings.HasPrefix(url, "https://") || !ok || hex == "" || algo != want {
 			return msg.ToolUnbuilt(tool, version)
 		}
-		args = append(args, url, strings.TrimPrefix(sum, "sha512:"))
+		args = append(args, url, hex)
 	}
 	spec := backend.ToolsSpec{
 		Name: Label([]string{file}), Base: base, Out: out, OutAt: ShareAt, Args: args, Format: tg.Format,

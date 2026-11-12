@@ -8,6 +8,7 @@
 [tool_alias]
 claude = "aqua:anthropics/claude-code"
 codex = "aqua:openai/codex"
+cursor = "http:cursor"                   # no aqua/core backend; withCursorDownloads pins lab tarballs
 opencode = "github:anomalyco/opencode"   # its GitHub releases: a musl build of its own, attested
 pi = "github:earendil-works/pi"          # its GitHub releases: one Bun-built program per platform, glibc only
 pnpm = "aqua:pnpm/pnpm"
@@ -24,6 +25,7 @@ rust = "latest"        # installed with the rustup pinned in build.sh; rustup ch
 dotnet = "latest"      # the SDK; devvm adds its downloads and their SHA-512 from Microsoft's releases
 claude = "latest"
 codex = "latest"
+cursor = "2026.11.11-b912975"  # lab package version; withCursorDownloads adds URLs + SHA-256
 opencode = "2"         # upstream marks its 1.x releases as GitHub's latest, which "latest" resolves to
 pi = "latest"
 

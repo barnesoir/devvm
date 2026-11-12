@@ -158,6 +158,13 @@ fi
 # Claude Code checks for itself at ~/.local/bin/claude.
 claude=$(awk '$2 == "claude" { print $3 }' "$s/tools")
 if [[ -n $claude ]]; then mkdir -p ~/.local/bin; ln -sfn /opt/devvm/tools/claude/"$claude"/claude ~/.local/bin/claude; fi
+# Cursor Agent CLI: primary command is agent; cursor-agent is the legacy name.
+cursor=$(awk '$2 == "cursor" { print $3 }' "$s/tools")
+if [[ -n $cursor ]]; then
+  mkdir -p ~/.local/bin
+  ln -sfn /opt/devvm/tools/cursor/"$cursor"/cursor-agent ~/.local/bin/agent
+  ln -sfn /opt/devvm/tools/cursor/"$cursor"/cursor-agent ~/.local/bin/cursor-agent
+fi
 mise reshim 2>/dev/null || true
 # A command over ssh runs bash non-interactively, and bash then reads ~/.bashrc instead of BASH_ENV:
 # its first line, before the "not interactive: return". Features (oh-my-bash) and users replace ~/.bashrc.

@@ -644,6 +644,8 @@ func loginFailed(path string, err error) msg.M {
 		return msg.CodexRefreshFailed(re.Err.Error()).Because(err)
 	case errors.As(err, &re) && re.Agent == agents.Claude:
 		return msg.ClaudeRefreshFailed(re.Err.Error()).Because(err)
+	case errors.As(err, &re) && re.Agent == agents.Cursor:
+		return msg.CursorRefreshFailed(re.Err.Error()).Because(err)
 	case errors.As(err, &re):
 		return msg.OpencodeRefreshFailed(re.Provider, re.Err.Error()).Because(err)
 	}

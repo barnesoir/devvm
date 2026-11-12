@@ -58,8 +58,8 @@ glibc_needs() {
   rm -f "$files" "$elf"
 }
 [[ $devvm_libc != gnu ]] || command -v readelf >/dev/null || { echo "build.sh: base has no readelf (binutils)" >&2; exit 1; }
-(( $# == 3 )) || [[ $# == 5 && $1 == dotnet ]] ||
-  { echo "build.sh: wants TOOL VERSION FILE (dotnet: and URL SHA512), got $# arguments" >&2; exit 2; }
+(( $# == 3 )) || [[ $# == 5 && ( $1 == dotnet || $1 == cursor ) ]] ||
+  { echo "build.sh: wants TOOL VERSION FILE (dotnet|cursor: and URL CHECKSUM), got $# arguments" >&2; exit 2; }
 tool=$1 version=$2 file=$3
 
 wait_share
@@ -93,6 +93,16 @@ elif [[ $tool == dotnet ]]; then
   band=${version%.*}.$(( ${version##*.} / 100 * 100 ))
   mkdir -p "$dir/metadata/workloads/$band"
   touch "$dir/metadata/workloads/$band/userlocal"
+elif [[ $tool == cursor ]]; then
+  # Cursor Agent CLI package from downloads.cursor.com/lab (install script URL), with the SHA-256
+  # the lock records. Layout is dist-package/; strip to the version dir and expose agent.
+  [[ $# == 5 ]] || { echo "build.sh: cursor wants VERSION, URL and SHA256" >&2; exit 2; }
+  dir=$work/cursor/$version; mkdir -p "$dir"
+  devvm-fetch "$4" "$5" /tmp/cursor-agent.tar.gz
+  tar --strip-components=1 -xzf /tmp/cursor-agent.tar.gz -C "$dir"
+  rm /tmp/cursor-agent.tar.gz
+  [[ -x $dir/cursor-agent ]] || { echo "build.sh: cursor package has no cursor-agent binary" >&2; exit 1; }
+  ln -sfn cursor-agent "$dir/agent"
 else
   # By name: mise resolves mise.toml's version through the lock (an explicit tool@version isn't
   # matched to the lock's entry).

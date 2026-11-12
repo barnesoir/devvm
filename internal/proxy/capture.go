@@ -32,12 +32,14 @@ import (
 )
 
 // Capture is one of an agent's OAuth token endpoints (Config.Captures): the agent whose login its
-// replies hold, the host, and the path a token request is a POST to. agentlogin's Endpoints are
-// every agent's.
+// replies hold, the host, and the path a token request is a POST to (or Method when set).
+// agentlogin's Endpoints are every agent's.
 type Capture struct {
 	Agent string `json:"agent"`
 	Host  string `json:"host"`
 	Path  string `json:"path"`
+	// Method is the HTTP method to capture, default POST. Cursor Agent's browser login polls with GET.
+	Method string `json:"method,omitempty"`
 }
 
 // Exchange is one token request the proxy captures the reply to: the VM's, for the agents whose
@@ -105,20 +107,21 @@ func (cs *captures) has(host string) bool {
 	return slices.ContainsFunc(cs.list, func(c Capture) bool { return c.Host == host })
 }
 
-// agents returns the agents whose token endpoint r, a request for host, is: a POST to its path,
-// compared once cleaned, without path parameters (;x) and in any case, so another spelling of the
-// path (/oauth//token, /OAuth/Token/, /oauth/token;x) never passes uncaptured, and the endpoint's
-// own path, which the request goes to. None: it isn't one.
+// agents returns the agents whose token endpoint r, a request for host, is: a POST (or Capture.Method)
+// to its path, compared once cleaned, without path parameters (;x) and in any case, so another
+// spelling of the path (/oauth//token, /OAuth/Token/, /oauth/token;x) never passes uncaptured, and
+// the endpoint's own path, which the request goes to. None: it isn't one.
 func (cs *captures) agents(host string, r *http.Request) ([]string, string) {
-	if r.Method != http.MethodPost {
-		return nil, ""
-	}
 	p, _, _ := strings.Cut(r.URL.Path, ";")
 	p = path.Clean("/" + p)
 	var out []string
 	var at string
 	for _, c := range cs.list {
-		if c.Host == host && strings.EqualFold(p, c.Path) && !slices.Contains(out, c.Agent) {
+		want := c.Method
+		if want == "" {
+			want = http.MethodPost
+		}
+		if c.Host == host && r.Method == want && strings.EqualFold(p, c.Path) && !slices.Contains(out, c.Agent) {
 			out, at = append(out, c.Agent), c.Path
 		}
 	}
@@ -328,7 +331,7 @@ func (s *server) guard(resp *http.Response) error {
 	if err != nil {
 		return fmt.Errorf("%w: a reply from a token endpoint's host: %w", errCaptureRefused, err)
 	}
-	for _, k := range []string{"access_token", "refresh_token", "id_token"} {
+	for _, k := range []string{"access_token", "refresh_token", "id_token", "accessToken", "refreshToken"} {
 		if bytes.Contains(b, []byte(k)) {
 			return fmt.Errorf("%w: a login's tokens from a path that isn't its endpoint's", errCaptureRefused)
 		}

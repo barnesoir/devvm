@@ -108,11 +108,11 @@ func TestReadConfigRefuses(t *testing.T) {
 		{"a CA without its key", write("ca", enc(Config{Listen: "127.0.0.1:0", Password: "k3y", CA: "/ca.pem"}), 0o600), nil, "ca and ca_key go together"},
 		{"a next CA without its key", write("next", enc(Config{Listen: "127.0.0.1:0", Password: "k3y", CA: "/ca.pem", CAKey: "/ca.key", CANext: "/next.pem"}), 0o600), nil, "ca_next and ca_next_key go together"},
 		{"a next CA alone", write("nextonly", enc(Config{Listen: "127.0.0.1:0", Password: "k3y", CANext: "/next.pem", CANextKey: "/next.key"}), 0o600), nil, "ca_next needs ca"},
-		{"captures without a CA", write("capca", enc(Config{Listen: "127.0.0.1:0", Password: "k3y", Captures: []Capture{{"codex", "auth.openai.com", "/oauth/token"}}}), 0o600), nil, "captures need ca"},
-		{"a capture without an agent", write("capagent", enc(withCA(Capture{"", "auth.openai.com", "/oauth/token"})), 0o600), nil, "isn't one"},
-		{"a capture at no host", write("caphost", enc(withCA(Capture{"codex", "auth openai", "/oauth/token"})), 0o600), nil, "isn't one"},
-		{"a capture's unclean path", write("cappath", enc(withCA(Capture{"codex", "auth.openai.com", "/oauth/../token"})), 0o600), nil, "isn't one"},
-		{"a capture's relative path", write("caprel", enc(withCA(Capture{"codex", "auth.openai.com", "oauth/token"})), 0o600), nil, "isn't one"},
+		{"captures without a CA", write("capca", enc(Config{Listen: "127.0.0.1:0", Password: "k3y", Captures: []Capture{{Agent: "codex", Host: "auth.openai.com", Path: "/oauth/token"}}}), 0o600), nil, "captures need ca"},
+		{"a capture without an agent", write("capagent", enc(withCA(Capture{Agent: "", Host: "auth.openai.com", Path: "/oauth/token"})), 0o600), nil, "isn't one"},
+		{"a capture at no host", write("caphost", enc(withCA(Capture{Agent: "codex", Host: "auth openai", Path: "/oauth/token"})), 0o600), nil, "isn't one"},
+		{"a capture's unclean path", write("cappath", enc(withCA(Capture{Agent: "codex", Host: "auth.openai.com", Path: "/oauth/../token"})), 0o600), nil, "isn't one"},
+		{"a capture's relative path", write("caprel", enc(withCA(Capture{Agent: "codex", Host: "auth.openai.com", Path: "oauth/token"})), 0o600), nil, "isn't one"},
 		{"missing", filepath.Join(dir, "missing"), os.ErrNotExist, ""},
 	} {
 		done := make(chan error, 1)

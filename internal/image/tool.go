@@ -48,6 +48,11 @@ const (
 	// lock from Microsoft's release metadata. mise's own installer for it
 	// runs Microsoft's install script, which nothing pins or checks.
 	DotnetSDK
+	// CursorAgent installs it: build.sh unpacks Cursor's agent-cli-package
+	// tarball from downloads.cursor.com/lab, the lock's download with a
+	// SHA-256 that withCursorDownloads pins. mise has no Cursor Agent
+	// backend that pins per-platform archives.
+	CursorAgent
 )
 
 // ToolDef is a shared tool as devvm offers it: what a VM is given by its
@@ -137,7 +142,11 @@ var SharedTools = append([]ToolDef{
 func agentTools() []ToolDef {
 	out := make([]ToolDef, len(agents.Defs))
 	for i, d := range agents.Defs {
-		out[i] = ToolDef{Name: d.Name, Kind: Agent, Members: []string{d.Name}, GlibcOnly: d.GlibcOnly}
+		td := ToolDef{Name: d.Name, Kind: Agent, Members: []string{d.Name}, GlibcOnly: d.GlibcOnly}
+		if d.Name == agents.Cursor {
+			td.Installer = CursorAgent
+		}
+		out[i] = td
 	}
 	return out
 }
@@ -253,9 +262,12 @@ func GroupTools(name string) []string {
 func NoDownload(tool string) bool { return installerOf(tool) == Rustup }
 
 // OwnDownload reports whether shared-tools/build.sh fetches a tool's
-// download from the lock itself, rather than mise or rustup: dotnet,
-// whose download and checksum devvm adds to the lock.
-func OwnDownload(tool string) bool { return installerOf(tool) == DotnetSDK }
+// download from the lock itself, rather than mise or rustup: dotnet and
+// cursor, whose downloads and checksums devvm adds to the lock.
+func OwnDownload(tool string) bool {
+	i := installerOf(tool)
+	return i == DotnetSDK || i == CursorAgent
+}
 
 // GlibcOnly reports whether a tool in the lock has builds for glibc
 // alone (its shared tool's GlibcOnly, an agent's agents.Def's).

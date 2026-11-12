@@ -3,15 +3,16 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/msg"
 	"github.com/devvmhq/devvm/internal/vm"
 )
 
-// newCursorCmd is devvm cursor.
+// newCursorCmd is devvm cursor (Remote-SSH editor; agents.Cursor names the coding agent too).
 func newCursorCmd(a *app) *cobra.Command {
 	var include bool
 	cmd := &cobra.Command{
-		Use: "cursor",
+		Use: agents.Cursor,
 		Annotations: about{
 			docs: "using/ssh#cursor", group: groupVM,
 			noJSON: "it opens Cursor",

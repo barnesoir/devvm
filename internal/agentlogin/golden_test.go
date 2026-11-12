@@ -81,6 +81,10 @@ func goldenLogins() map[string]string {
 			"accessToken": claudeTokenStart + "e2efake", "refreshToken": "rt-e2efake", "expiresAt": future.UnixMilli(),
 			"scopes": []any{"user:inference", "user:profile"}, "subscriptionType": "max", "rateLimitTier": "t", "other": "dropped",
 		}}),
+		Cursor: enc(map[string]any{ //nolint:gosec // fake values
+			"accessToken": "eyJhbGciOiJIUzI1NiJ9.e30.e2efake", "refreshToken": "rt-cursor-e2efake",
+			"apiKey": "key-e2efake", "bedrockCredentials": map[string]any{"withheld": true},
+		}),
 	}
 }
 

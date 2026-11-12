@@ -254,6 +254,7 @@ func TestEndpointsAndPick(t *testing.T) {
 		{Agent: Opencode, Host: "auth.openai.com", Path: "/oauth/token"},
 		{Agent: Claude, Host: "platform.claude.com", Path: "/v1/oauth/token"},
 		{Agent: Claude, Host: "console.anthropic.com", Path: "/v1/oauth/token"},
+		{Agent: Cursor, Host: CursorAPIHost, Path: CursorPollPath, Method: "GET"},
 	}
 	if got := Endpoints(); !slices.Equal(got, want) {
 		t.Errorf("Endpoints() = %+v", got)

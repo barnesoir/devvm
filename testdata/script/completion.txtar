@@ -76,4 +76,5 @@ stdout '^fish$'
 #!/bin/bash
 -- agents-c.txt --
 claude,codex
+claude,cursor
 :4

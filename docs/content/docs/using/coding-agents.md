@@ -37,12 +37,13 @@ In the VM, you run each agent by its name in the table, such as `claude`.
 | --- | --- | --- | --- |
 | `claude` | Claude Code | the newest release, with its auto-update off, since the shared copy is read-only, and its telemetry off | Anthropic's API, Claude's login and Claude Code's downloads: `api.anthropic.com`, `claude.ai`, `downloads.claude.ai`, `platform.claude.com` and `mcp-proxy.anthropic.com` |
 | `codex` | Codex | the newest release, with its analytics and metrics off unless your config sets them | the OpenAI API and the ChatGPT login: `api.openai.com`, `chatgpt.com` and `auth.openai.com` |
-| `opencode` | opencode | the newest 2.x release, because opencode marks its 1.x releases as its latest on GitHub | opencode's own service and its model catalog: `opencode.ai` and `models.opencode.ai` |
+| `cursor` | Cursor Agent | a pinned lab release of the Agent CLI (`agent` / `cursor-agent`), glibc only | Cursor's API, site and downloads: `api2.cursor.sh`, `api2direct.cursor.sh`, `api3.cursor.sh`, `cursor.com`, `www.cursor.com` and `downloads.cursor.com` |
+| `opencode` | opencode | the newest 2.x release, because opencode marks its 1.x releases as GitHub's latest | opencode's own service and its model catalog: `opencode.ai` and `models.opencode.ai` |
 | `pi` | [pi](https://pi.dev) | the newest release, with its check for a newer pi and its install report off, and `fd`, which pi finds files with, in base | pi's model catalog: `pi.dev` |
 
 Claude Code's telemetry hosts aren't on its allowlist, because blocking them costs nothing. opencode and pi talk to the model provider you choose, so on the allowlist tier you allow that provider's API host yourself, such as `devvm network allow api.anthropic.com` ([changing rules](../safety/network.md#changing-rules)), unless devvm keeps the agent's login or API key for that provider, because the VM's proxy then allows its host. Every VM sets `OPENCODE_DISABLE_AUTOUPDATE=1`, as it sets `DISABLE_AUTOUPDATER=1` for Claude Code, because the agents are read-only shared tools that can't update themselves, and devvm keeps their versions. For the same reason every VM sets `PI_SKIP_VERSION_CHECK=1`, so pi doesn't ask you to run `pi update`, and `PI_TELEMETRY=0`, which turns off pi's report of its install and the attribution headers it adds to some providers' requests. Claude Code's telemetry and error reports are off with `DISABLE_TELEMETRY=1` and `DISABLE_ERROR_REPORTING=1`. devvm writes every agent's variables into each VM at every launch, whichever agents the VM has, and every shell in the VM gets them, login or not, so an agent that an editor's terminal or `ssh` runs gets them too. pi would download `fd` and `rg` into `~/.pi/agent/bin` whenever they're missing, so base has both, from Ubuntu's or the container image's own packages, and pi finds Ubuntu's and Debian's `fd` by its name there, `fdfind`.
 
-pi's releases are built for glibc alone, so a VM made `--from` an Alpine-based container image can't have pi, and devvm refuses it there ([shared tools and glibc](from.md#shared-tools-and-glibc)). Every other agent runs on Alpine too.
+pi's and Cursor Agent's releases are built for glibc alone, so a VM made `--from` an Alpine-based container image can't have them, and devvm refuses them there ([shared tools and glibc](from.md#shared-tools-and-glibc)). Every other agent runs on Alpine too.
 
 Agents are [shared tools](images.md#shared-tools), like the toolchains, so you can combine them with any layers and with each other, as in `devvm --tools node --agents claude,codex`. devvm follows each agent's newest release, because agents release several times a week, and `devvm update` or `devvm tools update` moves a VM to newer versions ([adding and removing tools](toolchains.md#adding-and-removing-tools)).
 
@@ -158,6 +159,16 @@ devvm keeps one Claude Code login, either your subscription's login or a Claude 
 A VM gets either `~/.claude/.credentials.json` or `CLAUDE_CODE_OAUTH_TOKEN` from devvm, never both, because Claude Code would use the token in its environment over the login in its file. A VM that started with the login devvm replaced keeps working, because its proxy puts the login devvm keeps now in place of either placeholder. A `CLAUDE_CODE_OAUTH_TOKEN` in devvm's own environment on this machine wins over both, as it does in Claude Code, so VMs get that token, and `devvm agent login claude` warns you when it's set. The VM gets placeholders whatever its network tier.
 
 Anthropic doesn't document the requests that Claude Code's login sends, so devvm follows the ones Claude Code sends today, and a new Claude Code release can change them. When a login in a VM stops working, run `devvm agent login claude` again, or save a Claude Code token instead.
+
+### Cursor Agent login
+
+You log Cursor Agent in once, from inside any VM that has `cursor`, and devvm keeps the login on this machine for every VM with Cursor Agent:
+
+```sh
+devvm agent login cursor
+```
+
+devvm runs `agent login` in the VM with `NO_OPEN_BROWSER=1`, so the CLI prints a `cursor.com/loginDeepControl` URL. Open that URL in a browser on any machine and approve the login. The CLI polls `api2.cursor.sh/auth/poll` through the VM's proxy; when the poll succeeds, the proxy saves `{accessToken, refreshToken}` in `~/.local/share/devvm/logins/cursor/.config/cursor-agent/auth.json` and returns placeholders to the VM. Nothing is forwarded. In the VM, run `agent` (or `cursor-agent`). The proxy puts the access token into `Authorization` for `api2.cursor.sh`, `api2direct.cursor.sh` and `api3.cursor.sh`. When the access token's JWT is past due, run `devvm agent login cursor` again (browser-token refresh isn't a documented public endpoint yet). Cursor Agent's releases are glibc-only, so Alpine-based `--from` images can't have it.
 
 ### Codex and opencode logins
 

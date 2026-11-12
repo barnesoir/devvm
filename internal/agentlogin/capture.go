@@ -58,6 +58,8 @@ var endpoints = []proxy.Capture{
 	{Agent: agents.Opencode, Host: "auth.openai.com", Path: "/oauth/token"},
 	{Agent: agents.Claude, Host: "platform.claude.com", Path: "/v1/oauth/token"},
 	{Agent: agents.Claude, Host: "console.anthropic.com", Path: "/v1/oauth/token"},
+	// Cursor Agent CLI browser login: GET poll, not a POST token grant.
+	{Agent: agents.Cursor, Host: CursorAPIHost, Path: CursorPollPath, Method: "GET"},
 }
 
 // Endpoints returns the token endpoints whose replies every VM's proxy captures, whatever its
@@ -202,6 +204,10 @@ func (f File) lockStore() (func(), error) {
 // store's login as placeholders, since the host refreshes it. A request whose reply can't be
 // captured is refused, and so is an exchange for another id_token.
 func (f File) CaptureRequest(ctype string, body []byte) (out, answer []byte, err error) {
+	if f.Kind == agents.Cursor {
+		// GET /auth/poll has no body to rewrite; the host owns refresh.
+		return body, nil, nil
+	}
 	t, err := parseTokenRequest(ctype, body)
 	if err != nil {
 		return nil, nil, err
@@ -269,6 +275,25 @@ func (f File) managedReply(m map[string]any) ([]byte, error) {
 // place of the tokens, no refresh token, and an expiry at farFuture. A reply without the tokens a
 // login needs is refused, and nothing is saved.
 func (f File) Capture(ctype string, req, reply []byte) ([]byte, error) {
+	if f.Kind == agents.Cursor {
+		unlock, err := f.lockStore()
+		if err != nil {
+			return nil, err
+		}
+		defer unlock()
+		m, err := readLogin(f.Path)
+		if err != nil {
+			return nil, err
+		}
+		m, vm, err := cursorCapture(m, reply, f.Salt)
+		if err != nil {
+			return nil, err
+		}
+		if err := writeRefreshed(f.Path, m); err != nil {
+			return nil, err
+		}
+		return json.Marshal(vm)
+	}
 	t, err := parseTokenRequest(ctype, req)
 	if err != nil {
 		return nil, err

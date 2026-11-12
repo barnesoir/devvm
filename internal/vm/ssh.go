@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/exec"
 
+	"github.com/devvmhq/devvm/internal/agents"
 	"github.com/devvmhq/devvm/internal/backend"
 	"github.com/devvmhq/devvm/internal/msg"
 	"github.com/devvmhq/devvm/internal/vmssh"
@@ -40,7 +41,7 @@ func (e Launch) Code(ctx context.Context) error {
 
 // Cursor is Code for Cursor's cursor command over Remote-SSH.
 func (e Launch) Cursor(ctx context.Context) error {
-	return e.openRemote(ctx, "cursor", msg.NoCursorCommand)
+	return e.openRemote(ctx, agents.Cursor, msg.NoCursorCommand)
 }
 
 // openRemote gets the folder's VM ready for ssh and editors (reach), then
