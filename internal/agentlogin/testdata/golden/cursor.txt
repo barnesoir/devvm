@@ -1,4 +1,4 @@
-binding {"name":"cursor","kind":"login","agent":"cursor","hosts":["api2.cursor.sh","api2direct.cursor.sh","api3.cursor.sh"],"header":"Authorization","placeholder":"devvm-proxy-managed-cursor-s4lt"}
+binding {"name":"cursor","kind":"login","agent":"cursor","hosts":["api2.cursor.sh","api2direct.cursor.sh","api3.cursor.sh","*.api5.cursor.sh"],"header":"Authorization","placeholder":"devvm-proxy-managed-cursor-s4lt"}
 kept 
 withheld 
 unknown 

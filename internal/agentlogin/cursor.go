@@ -10,8 +10,9 @@ package agentlogin
 // until the reply is JSON with accessToken and refreshToken. On Linux the
 // CLI writes ~/.config/cursor-agent/auth.json mode 600 as
 // {accessToken, refreshToken, apiKey?, bedrockCredentials?}. Later requests
-// send Authorization: Bearer <accessToken> to api2.cursor.sh (and related
-// hosts). There is no localhost callback, so OwnLogin needs no port forward.
+// send Authorization: Bearer <accessToken> to api2.cursor.sh, api3, and the
+// api5 agent endpoint (*.api5.cursor.sh). There is no localhost callback, so
+// OwnLogin needs no port forward.
 // Host-side refresh of browser tokens is not a documented public REST
 // endpoint in that CLI; get returns the access token while its JWT is still
 // valid (refreshMargin), else RefreshError asking for login again. The
@@ -52,7 +53,7 @@ func cursorBindings(m map[string]any, salt string) []proxy.Binding {
 		return nil
 	}
 	return login(agents.Cursor, CursorAuthName, authorization(
-		CursorAPIHost, "api2direct.cursor.sh", "api3.cursor.sh",
+		CursorAPIHost, "api2direct.cursor.sh", "api3.cursor.sh", "*.api5.cursor.sh",
 	), cursorPlaceholder(salt))
 }
 

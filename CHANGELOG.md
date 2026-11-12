@@ -9,6 +9,7 @@
 ### Fixed
 
 - **Cursor Agent login:** captured requests keep their query string, so `GET api2.cursor.sh/auth/poll?uuid=&verifier=` reaches Cursor instead of a bare `/auth/poll` that fails at once ([coding agents](https://devvm.dev/docs/using/coding-agents/#cursor-agent-login)).
+- **Cursor Agent in the VM:** the allowlist and login binding cover `*.api5.cursor.sh` (the agent endpoint from Cursor's server config, such as `agentn.global.api5.cursor.sh`), so `agent` can open its session instead of reconnecting forever ([coding agents](https://devvm.dev/docs/using/coding-agents/#cursor-agent-login)).
 
 ## 0.1.1-rc.2
 

@@ -1,7 +1,8 @@
-# cursor: Cursor Agent CLI API, browser login poll, downloads and metrics.
+# cursor: Cursor Agent CLI API, browser login poll, agent endpoint, downloads and metrics.
 api2.cursor.sh
 api2direct.cursor.sh
 api3.cursor.sh
+*.api5.cursor.sh
 cursor.com
 downloads.cursor.com
 www.cursor.com

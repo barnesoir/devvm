@@ -37,7 +37,7 @@ In the VM, you run each agent by its name in the table, such as `claude`.
 | --- | --- | --- | --- |
 | `claude` | Claude Code | the newest release, with its auto-update off, since the shared copy is read-only, and its telemetry off | Anthropic's API, Claude's login and Claude Code's downloads: `api.anthropic.com`, `claude.ai`, `downloads.claude.ai`, `platform.claude.com` and `mcp-proxy.anthropic.com` |
 | `codex` | Codex | the newest release, with its analytics and metrics off unless your config sets them | the OpenAI API and the ChatGPT login: `api.openai.com`, `chatgpt.com` and `auth.openai.com` |
-| `cursor` | Cursor Agent | a pinned lab release of the Agent CLI (`agent` / `cursor-agent`), glibc only | Cursor's API, site and downloads: `api2.cursor.sh`, `api2direct.cursor.sh`, `api3.cursor.sh`, `cursor.com`, `www.cursor.com` and `downloads.cursor.com` |
+| `cursor` | Cursor Agent | a pinned lab release of the Agent CLI (`agent` / `cursor-agent`), glibc only | Cursor's API, agent endpoint, site and downloads: `api2.cursor.sh`, `api2direct.cursor.sh`, `api3.cursor.sh`, `*.api5.cursor.sh`, `cursor.com`, `www.cursor.com` and `downloads.cursor.com` |
 | `opencode` | opencode | the newest 2.x release, because opencode marks its 1.x releases as GitHub's latest | opencode's own service and its model catalog: `opencode.ai` and `models.opencode.ai` |
 | `pi` | [pi](https://pi.dev) | the newest release, with its check for a newer pi and its install report off, and `fd`, which pi finds files with, in base | pi's model catalog: `pi.dev` |
 
@@ -168,7 +168,7 @@ You log Cursor Agent in once, from inside any VM that has `cursor`, and devvm ke
 devvm agent login cursor
 ```
 
-devvm runs `agent login` in the VM with `NO_OPEN_BROWSER=1`, so the CLI prints a `cursor.com/loginDeepControl` URL. Open that URL in a browser on any machine and approve the login. The CLI polls `api2.cursor.sh/auth/poll` through the VM's proxy; when the poll succeeds, the proxy saves `{accessToken, refreshToken}` in `~/.local/share/devvm/logins/cursor/.config/cursor-agent/auth.json` and returns placeholders to the VM. Nothing is forwarded. In the VM, run `agent` (or `cursor-agent`). The proxy puts the access token into `Authorization` for `api2.cursor.sh`, `api2direct.cursor.sh` and `api3.cursor.sh`. When the access token's JWT is past due, run `devvm agent login cursor` again (browser-token refresh isn't a documented public endpoint yet). Cursor Agent's releases are glibc-only, so Alpine-based `--from` images can't have it.
+devvm runs `agent login` in the VM with `NO_OPEN_BROWSER=1`, so the CLI prints a `cursor.com/loginDeepControl` URL. Open that URL in a browser on any machine and approve the login. The CLI polls `api2.cursor.sh/auth/poll` through the VM's proxy; when the poll succeeds, the proxy saves `{accessToken, refreshToken}` in `~/.local/share/devvm/logins/cursor/.config/cursor-agent/auth.json` and returns placeholders to the VM. Nothing is forwarded. In the VM, run `agent` (or `cursor-agent`). The proxy puts the access token into `Authorization` for `api2.cursor.sh`, `api2direct.cursor.sh`, `api3.cursor.sh` and `*.api5.cursor.sh` (the agent endpoint from Cursor's server config). When the access token's JWT is past due, run `devvm agent login cursor` again (browser-token refresh isn't a documented public endpoint yet). Cursor Agent's releases are glibc-only, so Alpine-based `--from` images can't have it.
 
 ### Codex and opencode logins
 

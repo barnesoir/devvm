@@ -38,7 +38,7 @@ func TestCursorCapture(t *testing.T) {
 	}
 	bs := bindings(t, f)
 	if len(bs) != 1 || bs[0].Name != CursorAuthName || bs[0].Placeholder != ph || bs[0].Header != "Authorization" ||
-		!slices.Equal(bs[0].Hosts, []string{"api2.cursor.sh", "api2direct.cursor.sh", "api3.cursor.sh"}) {
+		!slices.Equal(bs[0].Hosts, []string{"api2.cursor.sh", "api2direct.cursor.sh", "api3.cursor.sh", "*.api5.cursor.sh"}) {
 		t.Errorf("bindings = %+v", bs)
 	}
 	data, _ := vmCopy(t, f)
