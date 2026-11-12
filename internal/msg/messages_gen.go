@@ -919,6 +919,11 @@ func CreatingFromUbuntu(vm string) M {
 	return M{id: "creating_from_ubuntu", vals: []val{{"vm", vm}}}
 }
 
+// CursorFailed is [cursor_failed]: "Opening this folder's VM in Cursor failed: {{.reason}}."
+func CursorFailed(reason string) M {
+	return M{id: "cursor_failed", vals: []val{{"reason", reason}}}
+}
+
 // CustomLayerRemove is [custom_layer_remove]: "{{.layer}} is one of {{.vm}}'s layers, not a shared tool. To take it out, run devvm layer rm {{.layer}}."
 func CustomLayerRemove(layer string, vm string) M {
 	return M{id: "custom_layer_remove", vals: []val{{"layer", layer}, {"vm", vm}}}
@@ -2959,6 +2964,11 @@ func NoCommandPart(flags string, word string) M {
 	return M{id: "no_command_part", vals: []val{{"flags", flags}, {"word", word}}}
 }
 
+// NoCursorCommand is [no_cursor_command]: "Cursor's cursor command isn't on PATH. Connect to {{.host}} with Remote-SSH instead."
+func NoCursorCommand(host string) M {
+	return M{id: "no_cursor_command", vals: []val{{"host", host}}}
+}
+
 // NoDigest is [no_digest]: "{{.from}} has no digest that devvm recorded."
 func NoDigest(from string) M {
 	return M{id: "no_digest", vals: []val{{"from", from}}}
@@ -4094,7 +4104,7 @@ func SSHFailed(reason string) M {
 	return M{id: "ssh_failed", vals: []val{{"reason", reason}}}
 }
 
-// SSHHostInfo is [ssh_host_info]: "Connect with ssh {{.host}}, or with Remote-SSH: Connect to Host in VS Code.\nThe project folder in the VM is {{.dir}}."
+// SSHHostInfo is [ssh_host_info]: "Connect with ssh {{.host}}, or with Remote-SSH: Connect to Host in VS Code or Cursor.\nThe project folder in the VM is {{.dir}}."
 func SSHHostInfo(dir string, host string) M {
 	return M{id: "ssh_host_info", vals: []val{{"dir", dir}, {"host", host}}}
 }
@@ -4104,7 +4114,7 @@ func SSHIncludeAdded() M {
 	return M{id: "ssh_include_added"}
 }
 
-// SSHIncludeNeeded is [ssh_include_needed]: "To reach VMs by name with ssh or VS Code's Remote-SSH, ~/.ssh/config needs this line at the top:\n  {{.line}}"
+// SSHIncludeNeeded is [ssh_include_needed]: "To reach VMs by name with ssh or an editor's Remote-SSH, ~/.ssh/config needs this line at the top:\n  {{.line}}"
 func SSHIncludeNeeded(line string) M {
 	return M{id: "ssh_include_needed", vals: []val{{"line", line}}}
 }
@@ -5024,6 +5034,7 @@ var specs = map[string]spec{
 	"creating":                       {fields: []string{"vm"}},
 	"creating_from":                  {fields: []string{"image", "vm"}},
 	"creating_from_ubuntu":           {fields: []string{"vm"}},
+	"cursor_failed":                  {fields: []string{"reason"}},
 	"custom_layer_remove":            {fields: []string{"layer", "vm"}},
 	"custom_secret_howto":            {fields: []string{"hosts", "secret"}},
 	"custom_secret_refused":          {fields: []string{"path", "secret"}},
@@ -5432,6 +5443,7 @@ var specs = map[string]spec{
 	"no_command":                     {fields: []string{"word"}},
 	"no_command_like":                {fields: []string{"command", "word"}},
 	"no_command_part":                {fields: []string{"flags", "word"}},
+	"no_cursor_command":              {fields: []string{"host"}},
 	"no_digest":                      {fields: []string{"from"}},
 	"no_feature":                     {fields: []string{"feature", "features"}},
 	"no_github_token":                {fields: []string{"vm"}},

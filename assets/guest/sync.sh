@@ -222,20 +222,25 @@ if [[ -f "$s/moved" ]]; then
   claude_project_moved "$moved_from" "$moved_to" "$claude_from" "$claude_to"
 fi
 
-# VS Code over Remote-SSH (devvm code): its settings for this machine turn off what reaches the host
-# beyond the editor itself: forwarding ports the VM's programs open (to the host's localhost, which
-# devvm ports doesn't cover) and answering git's credential prompts with the host's GitHub sign-in.
-# The VM can change this file back; it's here so ordinary use is safe.
-vsc=~/.vscode-server/data/Machine/settings.json
-vsc_off='{"remote.autoForwardPorts": false, "git.terminalAuthentication": false, "github.gitAuthentication": false}'
-mkdir -p "$(dirname "$vsc")"
-if [[ ! -s $vsc ]]; then
-  echo "$vsc_off" | jq . > "$vsc"
-elif jq -e 'type == "object"' "$vsc" >/dev/null 2>&1; then
-  jq --argjson off "$vsc_off" '. + $off' "$vsc" > "$vsc.tmp" && mv "$vsc.tmp" "$vsc"
-else
-  echo "devvm: $vsc isn't plain JSON, so VS Code's port forwarding and git sign-in stay as they are there" >&2
-fi
+# VS Code / Cursor over Remote-SSH (devvm code, devvm cursor): their settings for this machine turn
+# off what reaches the host beyond the editor itself: forwarding ports the VM's programs open (to
+# the host's localhost, which devvm ports doesn't cover) and answering git's credential prompts with
+# the host's GitHub sign-in. The VM can change these files back; they're here so ordinary use is safe.
+editor_off='{"remote.autoForwardPorts": false, "git.terminalAuthentication": false, "github.gitAuthentication": false}'
+for editor_settings in \
+  ~/.vscode-server/data/Machine/settings.json \
+  ~/.cursor-server/data/Machine/settings.json
+do
+  mkdir -p "$(dirname "$editor_settings")"
+  if [[ ! -s $editor_settings ]]; then
+    echo "$editor_off" | jq . > "$editor_settings"
+  elif jq -e 'type == "object"' "$editor_settings" >/dev/null 2>&1; then
+    jq --argjson off "$editor_off" '. + $off' "$editor_settings" > "$editor_settings.tmp" &&
+      mv "$editor_settings.tmp" "$editor_settings"
+  else
+    echo "devvm: $editor_settings isn't plain JSON, so that editor's port forwarding and git sign-in stay as they are there" >&2
+  fi
+done
 
 # Codex has no env-var opt-out: append the off switches unless the (host-copied) config sets them.
 if command -v codex >/dev/null; then

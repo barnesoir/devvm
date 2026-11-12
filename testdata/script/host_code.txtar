@@ -79,6 +79,27 @@ stub_calls
 ! stdout '^code '
 env PATH=$SAVED_PATH
 
+# Back in the first web folder: Cursor over Remote-SSH, same path as code.
+cd $WORK/web
+env SSH_AUTH_SOCK=$WORK/user-agent.sock
+stub_reset
+exec devvm cursor
+stub_calls
+stdout '^cursor --remote ssh-remote\+devvm-web /\S*/web$'
+exec sh -c 'cat "$STUB_DIR/cursor-agent"'
+stdout '^\S*/user-agent\.sock$'
+env SSH_AUTH_SOCK=
+
+# No cursor command on PATH: said, with the host to connect to.
+exec sh -c 'mkdir "$WORK/nocursor" && for f in "$(dirname "$DEVVM_HOST_MISE")"/*; do [ "${f##*/}" = cursor ] || ln -s "$f" "$WORK/nocursor/"; done'
+env PATH=$DEVVM_BIN:$WORK/nocursor:/usr/bin:/bin:/usr/sbin:/sbin
+stub_reset
+! exec devvm cursor
+stderr '^devvm: no_cursor_command host=devvm-web$'
+stub_calls
+! stdout '^cursor '
+env PATH=$SAVED_PATH
+
 # Network policy: a VM devvm started confined that still reaches the
 # internet directly is stopped, as on a launch; no host name. (Its
 # hostagent here: the test's runner, which runs on, in place of the

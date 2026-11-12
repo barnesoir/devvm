@@ -27,21 +27,28 @@ cmp stdout blocked.want
 exec bash merge-test.sh
 cmp stdout merge.want
 
-# VS Code's settings in the VM: no port forwarding to the host, no git
-# sign-in relay; its other settings kept. A file that isn't plain JSON is
-# left as it is, and said.
+# VS Code and Cursor settings in the VM: no port forwarding to the host, no
+# git sign-in relay; each editor's other settings kept. A file that isn't
+# plain JSON is left as it is, and said.
 env HOME=$WORK/vmhome
 exec bash vsc.sh
 exec jq -c . $HOME/.vscode-server/data/Machine/settings.json
 stdout '^\{"remote\.autoForwardPorts":false,"git\.terminalAuthentication":false,"github\.gitAuthentication":false\}$'
+exec jq -c . $HOME/.cursor-server/data/Machine/settings.json
+stdout '^\{"remote\.autoForwardPorts":false,"git\.terminalAuthentication":false,"github\.gitAuthentication":false\}$'
 cp vsc-mine.json $HOME/.vscode-server/data/Machine/settings.json
+cp vsc-mine.json $HOME/.cursor-server/data/Machine/settings.json
 exec bash vsc.sh
 exec jq -c . $HOME/.vscode-server/data/Machine/settings.json
 stdout '^\{"editor\.fontSize":14,"remote\.autoForwardPorts":false,"git\.terminalAuthentication":false,"github\.gitAuthentication":false\}$'
+exec jq -c . $HOME/.cursor-server/data/Machine/settings.json
+stdout '^\{"editor\.fontSize":14,"remote\.autoForwardPorts":false,"git\.terminalAuthentication":false,"github\.gitAuthentication":false\}$'
 cp vsc-comments.json $HOME/.vscode-server/data/Machine/settings.json
+cp vsc-comments.json $HOME/.cursor-server/data/Machine/settings.json
 exec bash vsc.sh
 stderr 'isn''t plain JSON'
 cmp $HOME/.vscode-server/data/Machine/settings.json vsc-comments.json
+cmp $HOME/.cursor-server/data/Machine/settings.json vsc-comments.json
 
 # devvm-tools (assets/guest/tools.sh) tries every image in the VM's list:
 # it mounts the ones it can, and says why for each it can't (missing from
@@ -64,7 +71,7 @@ cmp stdout hosts.want
 awk '/^cat > ~\/.bashrc.d\/devvm-prompt.sh/ { on = 1; next } on && /^EOF$/ { exit } on' "$1" > prompt.sh
 awk '/^_devvm_blocked\(\) \{/ { on = 1 } on && /^EOF$/ { exit } on' "$1" > blocked.sh
 awk '/^merge_claude_json\(\) \{/ { on = 1 } on { print } on && /^\}$/ { exit }' "$1" > merge.sh
-awk '/^vsc=~\/.vscode-server/ { on = 1 } on && /^# Codex has no env-var/ { exit } on' "$1" > vsc.sh
+awk '/^editor_off=/ { on = 1 } on && /^# Codex has no env-var/ { exit } on' "$1" > vsc.sh
 awk '/^link_hosts\(\) \{/ { on = 1 } on { print } on && /^\}$/ { exit }' "$1" > hosts.sh
 for f in prompt.sh blocked.sh merge.sh vsc.sh hosts.sh; do [[ -s $f ]] || { echo "no $f in $1" >&2; exit 1; }; done
 -- hosts-test.sh --

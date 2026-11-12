@@ -1,14 +1,14 @@
 ---
 title: SSH and editors
-explainer: Reach VMs by name from ssh and VS Code
+explainer: Reach VMs by name from ssh, VS Code and Cursor
 weight: 3
 ---
 
-You can reach each running VM by name from ssh and from editors such as VS Code, and you choose for each VM whether it can use your SSH keys. [ssh into VMs](../internals/security.md#ssh-into-vms) explains how devvm's ssh entries keep a VM away from the rest of this machine.
+You can reach each running VM by name from ssh and from editors such as VS Code and Cursor, and you choose for each VM whether it can use your SSH keys. [ssh into VMs](../internals/security.md#ssh-into-vms) explains how devvm's ssh entries keep a VM away from the rest of this machine.
 
 ## SSH access by name
 
-Each running project VM can be reached as `devvm-<folder>`, as in `ssh devvm-website` or VS Code's *Remote-SSH: Connect to Host*. devvm chooses this alias once, when it makes the VM, and records it, so it never changes. A VM gets `devvm-<folder>` unless another VM already has that alias, and then its alias is its full name. So when two folders share a name, the first VM made keeps `devvm-website`, and the second one's alias is its full name, whichever of them you delete first. The VM's full name (`devvm-website-<hash>`) always works as well.
+Each running project VM can be reached as `devvm-<folder>`, as in `ssh devvm-website` or an editor's *Remote-SSH: Connect to Host*. devvm chooses this alias once, when it makes the VM, and records it, so it never changes. A VM gets `devvm-<folder>` unless another VM already has that alias, and then its alias is its full name. So when two folders share a name, the first VM made keeps `devvm-website`, and the second one's alias is its full name, whichever of them you delete first. The VM's full name (`devvm-website-<hash>`) always works as well.
 
 devvm writes these entries to `~/.local/share/devvm/ssh_config` each time it launches or stops a VM, because a VM's SSH port can change each time it starts. To use them, add this line to the top of `~/.ssh/config`, before any `Host` block:
 
@@ -16,7 +16,7 @@ devvm writes these entries to `~/.local/share/devvm/ssh_config` each time it lau
 Include ~/.local/share/devvm/ssh_config
 ```
 
-You can also point ssh at the file, as in `ssh -F ~/.local/share/devvm/ssh_config devvm-website`. `devvm host`, `devvm code` and a new [`--clone`](clone.md) VM offer to add the line in a terminal, and without one, they show it.
+You can also point ssh at the file, as in `ssh -F ~/.local/share/devvm/ssh_config devvm-website`. `devvm host`, `devvm code`, `devvm cursor` and a new [`--clone`](clone.md) VM offer to add the line in a terminal, and without one, they show it.
 
 - **Only running VMs are listed.** A stopped VM's port is free for any program on this machine to take, so an entry for it could hand your connection, and your agent, to that program. Start the VM with `devvm host` or `devvm` before you connect from an editor.
 - **Each entry checks the VM's own host keys,** which devvm reads from the VM once each time it starts and keeps in the VM's folder, `~/.local/share/devvm/vms/<hash>/run/known_hosts`. ssh refuses a host key that doesn't match, and a VM whose keys devvm can't read gets no entry.
@@ -30,6 +30,8 @@ You can also point ssh at the file, as in `ssh -F ~/.local/share/devvm/ssh_confi
 
 `devvm code` does the same, then opens the folder in VS Code over Remote-SSH with VS Code's `code` command, as in `code --remote ssh-remote+devvm-website ~/website`. VS Code gets the SSH agent that devvm was started with, not the one that devvm's own connections to the VM carry. Without `code` on `PATH`, devvm names the host to connect to with *Remote-SSH: Connect to Host*.
 
+`devvm cursor` is the same for Cursor, with Cursor's `cursor` command.
+
 ### VS Code
 
 Over Remote-SSH, VS Code reaches further than ssh:
@@ -40,6 +42,12 @@ Over Remote-SSH, VS Code reaches further than ssh:
 devvm turns both off in VS Code's settings for the VM, `~/.vscode-server/data/Machine/settings.json` in the VM. Each time devvm sets the VM up, it sets `remote.autoForwardPorts`, `git.terminalAuthentication` and `github.gitAuthentication` to `false` and keeps the file's other settings. A file with comments isn't plain JSON, so devvm leaves it as it is and says so in the run log.
 
 The VM can change that file back, so for a VM you don't trust, also set the three in your own VS Code settings on this machine. Programs in the VM can also open URLs in this machine's browser (`$BROWSER`).
+
+### Cursor
+
+`devvm cursor` opens the folder in Cursor over Remote-SSH the same way `devvm code` opens it in VS Code, as in `cursor --remote ssh-remote+devvm-website ~/website`. Cursor gets the SSH agent that devvm was started with. Without `cursor` on `PATH`, devvm names the host to connect to with *Remote-SSH: Connect to Host*.
+
+Cursor's Remote-SSH server keeps its machine settings in `~/.cursor-server/data/Machine/settings.json` in the VM. Each time devvm sets the VM up, it sets the same three keys it sets for VS Code there, and keeps the file's other settings. A file with comments isn't plain JSON, so devvm leaves it as it is and says so in the run log. For a VM you don't trust, set the three in your own Cursor settings on this machine as well.
 
 ## Agent forwarding
 

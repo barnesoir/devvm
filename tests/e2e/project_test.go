@@ -631,14 +631,15 @@ func projectExisting(s *S, w *webVM) {
 		}
 		return nil
 	})
-	s.Check("VS Code's settings in the VM: no port forwarding, no git sign-in relay", func() error {
-		_, err := s.InVM(vm, `[[ $(jq -c . ~/.vscode-server/data/Machine/settings.json) == "{\"remote.autoForwardPorts\":false,\"git.terminalAuthentication\":false,\"github.gitAuthentication\":false}" ]]`)
+	s.Check("VS Code and Cursor settings in the VM: no port forwarding, no git sign-in relay", func() error {
+		_, err := s.InVM(vm, `[[ $(jq -c . ~/.vscode-server/data/Machine/settings.json) == "{\"remote.autoForwardPorts\":false,\"git.terminalAuthentication\":false,\"github.gitAuthentication\":false}" ]] && [[ $(jq -c . ~/.cursor-server/data/Machine/settings.json) == "{\"remote.autoForwardPorts\":false,\"git.terminalAuthentication\":false,\"github.gitAuthentication\":false}" ]]`)
 		return err
 	})
 	_, _ = s.InVM(vm, `echo "{\"editor.fontSize\": 14, \"remote.autoForwardPorts\": true}" > ~/.vscode-server/data/Machine/settings.json`)
+	_, _ = s.InVM(vm, `echo "{\"editor.fontSize\": 15, \"remote.autoForwardPorts\": true}" > ~/.cursor-server/data/Machine/settings.json`)
 	_, _ = DevvmIn(s, p, "", []string{"HOME=" + home}, "host")
 	s.Check("changed back in the VM, devvm host turns them off again and keeps the others", func() error {
-		_, err := s.InVM(vm, `jq -e ".[\"editor.fontSize\"] == 14 and .[\"remote.autoForwardPorts\"] == false and .[\"github.gitAuthentication\"] == false" ~/.vscode-server/data/Machine/settings.json >/dev/null`)
+		_, err := s.InVM(vm, `jq -e ".[\"editor.fontSize\"] == 14 and .[\"remote.autoForwardPorts\"] == false and .[\"github.gitAuthentication\"] == false" ~/.vscode-server/data/Machine/settings.json >/dev/null && jq -e ".[\"editor.fontSize\"] == 15 and .[\"remote.autoForwardPorts\"] == false and .[\"github.gitAuthentication\"] == false" ~/.cursor-server/data/Machine/settings.json >/dev/null`)
 		return err
 	})
 	s.Check("restart, and its new host keys are pinned", func() error {

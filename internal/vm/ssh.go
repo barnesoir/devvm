@@ -35,17 +35,29 @@ func (e Launch) ShowHost(ctx context.Context) error {
 // environment devvm started with: the SSH agent devvm's own connections
 // use isn't the editor's.
 func (e Launch) Code(ctx context.Context) error {
+	return e.openRemote(ctx, "code", msg.NoCodeCommand)
+}
+
+// Cursor is Code for Cursor's cursor command over Remote-SSH.
+func (e Launch) Cursor(ctx context.Context) error {
+	return e.openRemote(ctx, "cursor", msg.NoCursorCommand)
+}
+
+// openRemote gets the folder's VM ready for ssh and editors (reach), then
+// opens the folder its shell would open in (shellDir) in the named editor
+// over Remote-SSH, with the environment devvm started with.
+func (e Launch) openRemote(ctx context.Context, bin string, missing func(string) msg.M) error {
 	host, t, err := e.reach(ctx)
 	if err != nil {
 		return err
 	}
-	path, err := exec.LookPath("code")
+	path, err := exec.LookPath(bin)
 	if err != nil {
-		return msg.NoCodeCommand(host)
+		return missing(host)
 	}
 	return e.Exec(backend.Command{
 		Path: path,
-		Args: []string{"code", "--remote", "ssh-remote+" + host, t.shellDir(ctx, e.vmLog())},
+		Args: []string{bin, "--remote", "ssh-remote+" + host, t.shellDir(ctx, e.vmLog())},
 		Env:  e.Environ,
 	})
 }

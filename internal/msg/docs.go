@@ -361,6 +361,7 @@ var docs = map[string]string{ //nolint:gosec // message IDs and pages, not crede
 	"agent_confirm_needs_askpass":    "using/ssh#devvms-own-agent",
 	"ssh_include_yourself":           "using/ssh#ssh-access-by-name",
 	"no_code_command":                "using/ssh#devvm-host-and-devvm-code",
+	"no_cursor_command":              "using/ssh#cursor",
 	"desktop_no_layer":               "using/desktop#adding-the-desktop",
 	"desktop_start_failed":           "using/desktop#when-the-desktop-doesnt-open",
 	"desktop_open_failed":            "using/desktop#when-the-desktop-doesnt-open",

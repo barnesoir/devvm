@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Cursor over Remote-SSH:** `devvm cursor` opens this folder's VM in Cursor the same way `devvm code` opens it in VS Code, and each setup writes Cursor's machine settings like VS Code's ([Cursor](https://devvm.dev/docs/using/ssh/#cursor)).
+
 ## 0.1.1-rc.2
 
 A release candidate for 0.1.1, adding to 0.1.1-rc.1. Install it with `devvm upgrade --to 0.1.1-rc.2`, the install script's `--version 0.1.1-rc.2`, or `brew install devvmhq/tap/devvm-rc`. Homebrew's `devvm` stays on 0.1.0.

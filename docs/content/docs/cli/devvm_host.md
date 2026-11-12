@@ -7,7 +7,7 @@ Get this folder's VM ready for ssh and editors, and show its host name
 
 ## Synopsis
 
-Get this folder's VM ready for ssh and editors as devvm does before it opens a shell, starting the VM if it's stopped. Then show the host name that ssh and VS Code's Remote-SSH reach it by, such as devvm-website for a folder named website.
+Get this folder's VM ready for ssh and editors as devvm does before it opens a shell, starting the VM if it's stopped. Then show the host name that ssh and an editor's Remote-SSH reach it by, such as devvm-website for a folder named website.
 
 ```text
 devvm host [flags]

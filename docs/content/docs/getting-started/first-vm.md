@@ -98,6 +98,7 @@ devvm                   # a shell in this folder's VM, started if it's stopped
 devvm tools             # choose its toolchains and agents
 devvm tools add claude  # add Claude Code to this folder's VM
 devvm code              # open it in VS Code
+devvm cursor            # open it in Cursor
 devvm stop              # stop it
 devvm ls                # list every VM
 devvm rm                # delete it after asking, saving its agents' history first

@@ -20,6 +20,7 @@ This page lists devvm's commands in the groups that `devvm --help` shows them in
 | `devvm adopt VM` | move a VM whose folder is gone to this folder, such as a copy of that folder on another disk, after asking ([details](../using/vms.md#a-moved-or-renamed-folder)) |
 | `devvm ls` | list the project VMs ([details](../using/vms.md#listing-vms)) |
 | `devvm code` | get this folder's VM ready as `devvm host` does, then open its folder in VS Code over Remote-SSH ([VS Code](../using/ssh.md#vs-code)) |
+| `devvm cursor` | get this folder's VM ready as `devvm host` does, then open its folder in Cursor over Remote-SSH ([Cursor](../using/ssh.md#cursor)) |
 | `devvm desktop [--clipboard] [--no-open]` | serve this folder's VM's desktop on `127.0.0.1` with its password until Ctrl+C, and open it in Screen Sharing on macOS ([details](../using/desktop.md)) |
 | `devvm host` | get this folder's VM ready for ssh and editors, and show the host name they reach it by, such as `devvm-website` ([details](../using/ssh.md#devvm-host-and-devvm-code)) |
 | `devvm history` | list the exports of agents' history that devvm saved in `~/.local/share/devvm/exports` ([details](../using/coding-agents.md#history)) |

@@ -1995,7 +1995,7 @@ other = "The origin remote uses SSH, but {{.vm}} has no SSH agent, so git over S
 
 [ssh_include_needed]
 description = "line is the Include line for ~/.ssh/config"
-other = "To reach VMs by name with ssh or VS Code's Remote-SSH, ~/.ssh/config needs this line at the top:\n  {{.line}}"
+other = "To reach VMs by name with ssh or an editor's Remote-SSH, ~/.ssh/config needs this line at the top:\n  {{.line}}"
 
 [ssh_include_yourself]
 other = "devvm couldn't ask here, so it didn't add the line. Add it yourself, or run the command again with --ssh-config."
@@ -2008,10 +2008,13 @@ other = "added to ~/.ssh/config"
 
 [ssh_host_info]
 description = "host is the name ssh reaches the VM by; dir is its folder there"
-other = "Connect with ssh {{.host}}, or with Remote-SSH: Connect to Host in VS Code.\nThe project folder in the VM is {{.dir}}."
+other = "Connect with ssh {{.host}}, or with Remote-SSH: Connect to Host in VS Code or Cursor.\nThe project folder in the VM is {{.dir}}."
 
 [no_code_command]
 other = "VS Code's code command isn't on PATH. Connect to {{.host}} with Remote-SSH instead."
+
+[no_cursor_command]
+other = "Cursor's cursor command isn't on PATH. Connect to {{.host}} with Remote-SSH instead."
 
 [ssh_failed]
 description = "reason is an error from the system, in English"
@@ -2020,6 +2023,10 @@ other = "Getting this folder's VM ready for ssh failed: {{.reason}}."
 [code_failed]
 description = "reason is an error from the system, in English"
 other = "Opening this folder's VM in VS Code failed: {{.reason}}."
+
+[cursor_failed]
+description = "reason is an error from the system, in English"
+other = "Opening this folder's VM in Cursor failed: {{.reason}}."
 
 [desktop_failed]
 description = "reason is an error from the system, in English"

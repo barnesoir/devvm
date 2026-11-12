@@ -86,6 +86,14 @@ func code(c *call) int {
 	return c.status(c.put("code-agent", []byte(c.agent()+"\n")))
 }
 
+// cursor stands in for Cursor's cursor command: never the real editor. It
+// logs every call to $STUB_LOG, and the SSH agent it was given
+// ($SSH_AUTH_SOCK, or "unset") to $STUB_DIR/cursor-agent.
+func cursor(c *call) int {
+	c.log()
+	return c.status(c.put("cursor-agent", []byte(c.agent()+"\n")))
+}
+
 // qemuImg stands in for qemu-img. It logs every call to $STUB_LOG. info
 // says the disk is qcow2, as JSON, backed by the file named in
 // $STUB_DIR/backing-<instance> (the disk's folder's name), if any;

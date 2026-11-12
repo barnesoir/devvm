@@ -38,6 +38,7 @@ func stubs() map[string]func(*call) int {
 	return map[string]func(*call) int{
 		"chflags":             logged,
 		"code":                code,
+		"cursor":              cursor,
 		"docker":              docker,
 		"limactl":             limactl,
 		"mise":                mise,
