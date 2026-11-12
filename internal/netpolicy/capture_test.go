@@ -15,10 +15,11 @@ import (
 	"github.com/devvmhq/devvm/internal/state"
 )
 
-// Every VM's proxy captures logins at OpenAI's and Claude's token endpoints, on every tier,
-// whatever its image holds: its config names them for Codex, opencode and Claude Code. In a Codex VM, the capture is
-// Codex's, whatever sends it, and it saves the login in devvm's store, gives the VM its
-// placeholders, and writes the VM's bindings again, so the proxy puts the login in at once.
+// Every VM's proxy captures logins at OpenAI's, Claude's and Cursor's token endpoints, on every
+// tier, whatever its image holds: its config names them for Codex, opencode, Claude Code and
+// Cursor Agent. In a Codex VM, the capture is Codex's, whatever sends it, and it saves the login
+// in devvm's store, gives the VM its placeholders, and writes the VM's bindings again, so the
+// proxy puts the login in at once.
 func TestCapturer(t *testing.T) {
 	d, st := sandbox(t, "base", "codex")
 	p, _ := testProxy(t, d)
@@ -27,6 +28,7 @@ func TestCapturer(t *testing.T) {
 		{Agent: "opencode", Host: "auth.openai.com", Path: "/oauth/token"},
 		{Agent: "claude", Host: "platform.claude.com", Path: "/v1/oauth/token"},
 		{Agent: "claude", Host: "console.anthropic.com", Path: "/v1/oauth/token"},
+		{Agent: "cursor", Host: "api2.cursor.sh", Path: "/auth/poll", Method: "GET"},
 	}
 	for _, vm := range []*state.VM{st, newVM(t, d, "devvm-plain-0123456789abc4", "base")} {
 		for _, tier := range []Tier{TierAllowlist, TierInternet, TierNone, TierOpen} {

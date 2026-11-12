@@ -4,7 +4,7 @@
 
 ### New
 
-- **Cursor over Remote-SSH:** `devvm cursor` opens this folder's VM in Cursor the same way `devvm code` opens it in VS Code, and each setup writes Cursor's machine settings like VS Code's ([Cursor](https://devvm.dev/docs/using/ssh/#cursor)).
+- **Cursor Agent:** a pinned Agent CLI shared tool, `devvm agent login cursor` for browser login with host-side tokens and guest placeholders (like Claude), and `devvm cursor` to open this folder's VM in Cursor over Remote-SSH the same way `devvm code` opens VS Code ([coding agents](https://devvm.dev/docs/using/coding-agents/#cursor-agent-login), [Cursor](https://devvm.dev/docs/using/ssh/#cursor)).
 
 ## 0.1.1-rc.2
 

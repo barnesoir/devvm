@@ -826,6 +826,10 @@ func TestHost(t *testing.T) {
 	if s.read("code-agent") != "unset\n" {
 		t.Errorf("code-agent %q", s.read("code-agent"))
 	}
+	s.ok("", "cursor", "--remote", "x")
+	if s.read("cursor-agent") != "unset\n" {
+		t.Errorf("cursor-agent %q", s.read("cursor-agent"))
+	}
 	if out := s.ok("", "qemu-img", "info", "-U", "--output=json", "/l/vm/disk"); out != `{"format":"qcow2"}`+"\n" {
 		t.Errorf("info %q", out)
 	}

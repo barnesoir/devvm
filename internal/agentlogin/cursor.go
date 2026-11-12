@@ -120,7 +120,7 @@ func cursorTokenFresh(tok string) bool {
 
 // cursorCapture saves a successful /auth/poll reply in m and returns the VM's
 // placeholder reply (camelCase, as the CLI expects).
-func cursorCapture(m map[string]any, reply []byte, salt string) (map[string]any, map[string]any, error) {
+func cursorCapture(_ map[string]any, reply []byte, salt string) (map[string]any, map[string]any, error) {
 	var r map[string]any
 	if json.Unmarshal(reply, &r) != nil || r == nil {
 		return nil, nil, errors.New("the reply isn't a JSON object")

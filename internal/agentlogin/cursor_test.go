@@ -13,8 +13,6 @@ import (
 // Cursor Agent's browser login: GET /auth/poll's camelCase reply is saved as
 // auth.json; the VM gets placeholders only; Authorization is bound for the
 // Cursor API hosts. Get returns the access token while its JWT is fresh.
-//
-//nolint:gosec // a test's fake tokens
 func TestCursorCapture(t *testing.T) {
 	f := storeFile(t, Cursor, "auth.json")
 	at := jwtWith(time.Now().Add(time.Hour), nil)

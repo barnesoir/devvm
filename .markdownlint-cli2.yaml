@@ -3,3 +3,6 @@ config:
   MD013: false
   # Lists may follow a paragraph directly.
   MD032: false
+  # CHANGELOG repeats "New" / "Changed" under each version.
+  MD024:
+    siblings_only: true

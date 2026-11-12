@@ -7,7 +7,7 @@ Log an agent in, in this folder's VM, and save the login in devvm's store
 
 ## Synopsis
 
-Log AGENT in inside this folder's VM, and keep the login in devvm's store for every VM with the agent, which gets only placeholders. claude logs in to your Claude subscription in a browser on any machine, whose code you paste back, or gets a long-lived Claude Code token with --setup-token. codex and opencode log in to ChatGPT in a browser on this machine, or with a code with --device-code, or save an API key with --api-key, which is pi's only login.
+Log AGENT in inside this folder's VM, and keep the login in devvm's store for every VM with the agent, which gets only placeholders. claude and cursor log in in a browser on any machine (Claude Code may use --setup-token instead); codex and opencode log in to ChatGPT in a browser on this machine or with --device-code, or save an API key with --api-key, which is pi's only login.
 
 ```text
 devvm agent login AGENT [flags]
@@ -18,6 +18,7 @@ devvm agent login AGENT [flags]
 ```text
   devvm agent login claude                                   # log Claude Code in to your Claude subscription
   devvm agent login claude --setup-token                     # get a Claude Code token with claude setup-token instead
+  devvm agent login cursor                                   # log Cursor Agent in with its browser login
   devvm agent login codex                                    # log Codex in to ChatGPT in a browser on this machine
   devvm agent login codex --device-code                      # log in with a code, in a browser on any machine
   devvm agent login opencode --api-key --provider anthropic  # save opencode's Anthropic API key, asking for it
